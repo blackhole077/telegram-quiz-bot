@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  quiz-bot:
+    build:
+      context: ..
+      dockerfile: bot/Dockerfile
+      args:
+        CACHEBUST: 2
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ../data:/data
+    network_mode: bridge
