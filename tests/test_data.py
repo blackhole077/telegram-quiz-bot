@@ -23,7 +23,7 @@ _OPTION_PARAMS = [
 class TestQuestionsData:
     @pytest.mark.parametrize("qid,topic,opt_idx,opt_text", _OPTION_PARAMS)
     def test_no_embedded_label_prefix(self, qid, topic, opt_idx, opt_text):
-        """Option text must not start with A), B), C), or D) — labels are added at display time."""
+        """Option text must not start with A), A., or A: prefixes — labels are added at display time."""
         assert not OPTION_PREFIX.match(opt_text), (
             f"[{topic}] question {qid!r} option[{opt_idx}] has embedded label prefix: {opt_text!r}"
         )

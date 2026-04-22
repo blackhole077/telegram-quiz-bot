@@ -151,7 +151,13 @@ class TestFmtQuestion:
         q = make_question(options=["A) first", "B) second", "C) third", "D) fourth"])
         text = fmt_question(q, 1, 1)
         assert "first" in text
-        assert "A) first" not in text  # prefix removed
+        assert "A) first" not in text
+
+    def test_colon_option_prefix_stripped(self):
+        q = make_question(options=["A: first", "B: second", "C: third", "D: fourth"])
+        text = fmt_question(q, 1, 1)
+        assert "first" in text
+        assert "A: first" not in text
 
 
 class TestFmtFeedback:

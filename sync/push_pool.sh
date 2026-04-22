@@ -10,7 +10,7 @@ if [[ ! -f "$LOCAL_POOL" ]]; then
     exit 1
 fi
 
-rsync -avz --checksum -e ssh \
+rsync -avz --checksum -e "ssh -p 9022" \
     "$LOCAL_POOL" \
     "${REMOTE_HOST}:${REMOTE_DATA_PATH}/questions.json"
 

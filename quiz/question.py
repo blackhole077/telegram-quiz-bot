@@ -7,7 +7,7 @@ import re
 
 from quiz.schemas import Question, QuestionType
 
-OPTION_PREFIX = re.compile(r"^[A-Da-d][).]\s+")
+OPTION_PREFIX = re.compile(r"^[A-Da-d][).:]\s+")
 
 
 def labels(q: Question) -> list[str]:
