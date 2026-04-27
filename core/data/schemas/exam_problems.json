@@ -1,0 +1,9 @@
+{
+  "problems": [
+    {
+      "number": "integer",
+      "prompt": "string - full problem statement, LaTeX ok",
+      "solution": "string - complete worked solution, LaTeX ok"
+    }
+  ]
+}

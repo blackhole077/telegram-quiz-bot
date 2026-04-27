@@ -6,6 +6,10 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "python-telegram-bot>=21.0,<22.0",
+    "openai>=1.50.0",
+    "pypdf>=4.0.0",
+    "pillow>=10.0.0",
+    "pillow-heif>=0.13.0",
 ]
 
 [build-system]
@@ -29,4 +33,4 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["quiz"]
+packages = ["core", "backend", "bot"]

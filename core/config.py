@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     storage_type: str = "filesystem"
     db_path: str = "/data/quiz.db"
+    llm_base_url: str = "http://localhost:11434/v1"
+    llm_api_key: str = "ollama"
+    llm_model: str = "qwen2.5vl:7b"
 
     @property
     def pool_path(self) -> Path:
@@ -40,3 +43,6 @@ class Settings(BaseSettings):
     @property
     def log_path(self) -> Path:
         return Path(self.data_dir) / "answers.jsonl"
+
+
+settings = Settings()

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from quiz.question import (
+from core.question import (
     fmt_feedback,
     fmt_question,
     input_hint,
     labels,
     normalise_answer,
-    shuffle,
+    shuffle_answers,
 )
-from quiz.schemas import QuestionType
+from core.schemas import QuestionType
 from tests.conftest import make_question, make_ref
 
 
@@ -42,7 +42,7 @@ class TestShuffle:
     def test_tof_never_shuffled(self, tof):
         original_options = tof.options[:]
         for _ in range(10):
-            result = shuffle(tof)
+            result = shuffle_answers(tof)
             assert result.options == original_options
             assert result is tof
 
@@ -52,35 +52,35 @@ class TestShuffle:
             correct="B",
         )
         for _ in range(20):
-            shuffled = shuffle(q)
+            shuffled = shuffle_answers(q)
             correct_idx = labels(shuffled).index(shuffled.correct)
             assert shuffled.options[correct_idx] == "beta"
 
     def test_mcq_shuffled_has_same_options_set(self):
         q = make_question(options=["alpha", "beta", "gamma", "delta"], correct="A")
-        shuffled = shuffle(q)
+        shuffled = shuffle_answers(q)
         assert sorted(shuffled.options) == sorted(q.options)
 
     def test_mcq_correct_label_updated(self):
         q = make_question(options=["A_txt", "B_txt", "C_txt", "D_txt"], correct="A")
-        shuffled = shuffle(q)
+        shuffled = shuffle_answers(q)
         correct_text_in_shuffled = shuffled.options[labels(shuffled).index(shuffled.correct)]
         assert correct_text_in_shuffled == "A_txt"
 
     def test_binary_is_shuffled(self):
         q = make_question(qtype=QuestionType.BINARY_CHOICE, options=["Yes", "No"], correct="A")
-        results = {shuffle(q).correct for _ in range(30)}
+        results = {shuffle_answers(q).correct for _ in range(30)}
         assert len(results) == 2
 
     def test_fewer_than_two_options_returns_unchanged(self):
         q = make_question(options=["only"], correct="A")
-        result = shuffle(q)
+        result = shuffle_answers(q)
         assert result is q
 
     def test_does_not_mutate_original(self):
         q = make_question(options=["alpha", "beta", "gamma", "delta"], correct="C")
         original_options = q.options[:]
-        shuffle(q)
+        shuffle_answers(q)
         assert q.options == original_options
 
 

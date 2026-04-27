@@ -1,12 +1,13 @@
-"""Telegram bot: delivers spaced-repetition quiz sessions."""
+"""Telegram bot: SRS quiz sessions, free-text practice, and LLM-graded exams."""
 
 from __future__ import annotations
 
+import asyncio
 import functools
+import io
 import logging
-import sys
 from collections.abc import Callable, Coroutine
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -20,252 +21,296 @@ from telegram.ext import (
     filters,
 )
 
-# Makes ``import quiz`` work when run directly without package install.
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from quiz import srs
-from quiz.question import (
-    fmt_feedback,
-    fmt_question,
-    input_hint,
-    normalise_answer,
-    shuffle,
-)
-from quiz.schemas import AnswerLogEntry, Question
-from quiz.selector import select_session
-from quiz.storage import StorageBackend, make_backend
-
-from bot.config import Settings
+from backend import make_backend
+from core.config import settings
+from core.exam import render_exam_pdf
+from core.llm import generate_exam, grade_answer, grade_from_image, grade_from_text
+from core.problems import filter_by_topic, load_problems, pick_random
+from core.question import fmt_feedback, fmt_question, input_hint
+from core.schemas import QuizSession
+from core.service import QuizService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-AWAITING_ANSWER = 1
+AWAITING_ANSWER          = 1
+AWAITING_PRACTICE_ANSWER = 2
+AWAITING_EXAM_ANSWER     = 3
 
-_settings = Settings()
-_backend: StorageBackend = make_backend(_settings)
+_KEY_SESSION          = "session"
+_KEY_PRACTICE_PROBLEM = "practice_problem"
+_KEY_EXAM_PROBLEMS    = "exam_problems"
+
+_PROBLEMS_PATH = Path(settings.data_dir) / "problems.json"
+try:
+    _PROBLEMS = load_problems(_PROBLEMS_PATH)
+except FileNotFoundError:
+    _PROBLEMS = []
+
+_service: QuizService = QuizService(make_backend(settings))
 
 _Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]]
 
 
 def _auth(func: _Handler) -> _Handler:
-    """Decorator that silently drops updates from unauthorised users.
-
-    Drops silently rather than replying, to avoid confirming the bot's
-    existence to unknown callers. Updates with no ``effective_user``
-    (e.g. channel posts) are passed through.
-
-    Note:
-        Returns ``ConversationHandler.END`` for unauthorised users. When
-        the wrapped handler is not part of a ConversationHandler (e.g.
-        ``cmd_stats``), that return value is discarded by the framework,
-        so the apparent ``-> None`` type mismatch is harmless.
-    """
+    """Silently drop updates from unauthorised users; catch unexpected handler errors."""
 
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
         if (
             update.effective_user
-            and update.effective_user.id != _settings.allowed_user_id
+            and update.effective_user.id != settings.allowed_user_id
         ):
             logger.warning(
                 "Ignoring message from unknown user %s", update.effective_user.id
             )
             return ConversationHandler.END
-        return await func(update, context)
+        try:
+            return await func(update, context)
+        except Exception:
+            logger.exception("Handler %s raised", func.__name__)
+            if update.message:
+                await update.message.reply_text("An error occurred. Please try again.")
+            return ConversationHandler.END
 
     return wrapper  # type: ignore[return-value]
 
 
-def _start_session(
-    context: ContextTypes.DEFAULT_TYPE,
-    all_questions: list[Question],
-    due: list[Question],
-) -> list[Question]:
-    """Shuffle due questions and store all session state in context.user_data.
-
-    Args:
-        context: The handler context whose user_data will be populated.
-        all_questions: The full question pool. Stored so handle_answer can
-            write back the complete pool after each SRS update.
-        due: Questions selected for this session.
-
-    Returns:
-        Shuffled display copies of due, in the same order.
-    """
-    assert context.user_data is not None
-    display = [shuffle(q) for q in due]
-    context.user_data["session"] = [q.id for q in due]
-    context.user_data["cursor"] = 0
-    context.user_data["score"] = 0
-    context.user_data["qmap"] = {q.id: q for q in all_questions}
-    context.user_data["display_qmap"] = {q.id: q for q in display}
-    return display
-
+# ---------------------------------------------------------------------------
+# /quiz
+# ---------------------------------------------------------------------------
 
 @_auth
 async def generate_and_start_quiz(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Handle the /quiz command: select due questions and start a new session.
-
-    Args:
-        update: The incoming Telegram update.
-        context: Handler context; user_data is populated via _start_session.
-
-    Returns:
-        AWAITING_ANSWER to enter the answer-handling state, or
-        ConversationHandler.END if no questions are due today.
-    """
     assert update.message is not None
-    all_questions = _backend.load_questions()
     today = date.today().isoformat()
-    due = select_session(all_questions, today=today)
+    due = _service.prepare_session(today)
 
     if not due:
-        await update.message.reply_text("No questions due today. Check back tomorrow!")
+        await update.message.reply_text(
+            "No questions due today. "
+            "Use /practice for word problems or /exam <topic> for a full test."
+        )
         return ConversationHandler.END
 
-    display = _start_session(context, all_questions, due)
-    await update.message.reply_text(fmt_question(display[0], 1, len(due)))
+    session = _service.start_session(due)
+    context.user_data[_KEY_SESSION] = session  # type: ignore[index]
+    await update.message.reply_text(fmt_question(session.current_display, 1, session.total))
     return AWAITING_ANSWER
 
 
 @_auth
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle a user's answer to the current question.
-
-    Args:
-        update: The incoming Telegram update containing the user's reply.
-        context: Handler context with session state in user_data.
-
-    Returns:
-        AWAITING_ANSWER to continue the session, or ConversationHandler.END
-        when the last question has been answered.
-    """
     assert update.message is not None
     assert context.user_data is not None
-    cursor: int = context.user_data["cursor"]
-    session_ids: list[str] = context.user_data["session"]
-    qmap: dict[str, Question] = context.user_data["qmap"]
-    total: int = len(session_ids)
-
-    qid = session_ids[cursor]
-    q = context.user_data["display_qmap"][qid]
-    original_q = qmap[qid]
-
-    answer = normalise_answer(update.message.text or "", q)
-    if answer is None:
-        await update.message.reply_text(f"Please reply with {input_hint(q)}.")
-        return AWAITING_ANSWER
-
-    correct = answer == q.correct.upper()
+    session: QuizSession = context.user_data[_KEY_SESSION]
     today = date.today().isoformat()
 
-    updated_q = (
-        srs.advance(original_q, today) if correct else srs.demote(original_q, today)
-    )
-    qmap[updated_q.id] = updated_q
-    _backend.append_answer(
-        AnswerLogEntry(
-            qid=qid,
-            topic=q.topic,
-            doc_id=q.references[0].doc_id if q.references else "",
-            level=updated_q.level,
-            correct=correct,
-            date=today,
-        )
-    )
-
-    if correct:
-        context.user_data["score"] += 1
-    cursor += 1
-    context.user_data["cursor"] = cursor
-
-    await update.message.reply_text(fmt_feedback(q, correct))
-
-    if cursor >= total:
-        _backend.save_questions(list(qmap.values()))
-        score = context.user_data["score"]
+    outcome = _service.process_answer(session, update.message.text or "", today)
+    if outcome is None:
         await update.message.reply_text(
-            f"Session complete. {score}/{total} correct.\n"
-            f"Type /quiz for another session or /stats for progress."
+            f"Please reply with {input_hint(session.current_display)}."
+        )
+        return AWAITING_ANSWER
+
+    await update.message.reply_text(fmt_feedback(outcome.graded_question, outcome.correct))
+
+    if session.is_complete:
+        await asyncio.to_thread(_service.end_session, session)
+        await update.message.reply_text(
+            f"Session complete. {session.score}/{session.total} correct.\n"
+            "Type /quiz for another session or /stats for progress."
         )
         return ConversationHandler.END
 
-    next_q = context.user_data["display_qmap"][session_ids[cursor]]
-    await update.message.reply_text(fmt_question(next_q, cursor + 1, total))
+    await update.message.reply_text(
+        fmt_question(session.current_display, session.cursor + 1, session.total)
+    )
     return AWAITING_ANSWER
 
 
+# ---------------------------------------------------------------------------
+# /practice
+# ---------------------------------------------------------------------------
+
+@_auth
+async def cmd_practice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    assert update.message is not None
+    topic = " ".join(context.args).strip() if context.args else ""
+
+    if not _PROBLEMS:
+        await update.message.reply_text("No problems available yet.")
+        return ConversationHandler.END
+
+    pool = filter_by_topic(_PROBLEMS, topic) if topic else _PROBLEMS
+    if not pool:
+        await update.message.reply_text(f"No problems found for topic '{topic}'.")
+        return ConversationHandler.END
+
+    problem = pick_random(pool)[0]
+    context.user_data[_KEY_PRACTICE_PROBLEM] = problem  # type: ignore[index]
+    await update.message.reply_text(
+        f"Practice ({problem.topic}, difficulty {problem.difficulty}/3):\n\n"
+        f"{problem.prompt}\n\n"
+        "Reply with your answer."
+    )
+    return AWAITING_PRACTICE_ANSWER
+
+
+@_auth
+async def handle_practice_answer(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    assert update.message is not None
+    assert context.user_data is not None
+    problem = context.user_data.get(_KEY_PRACTICE_PROBLEM)
+    if problem is None:
+        return ConversationHandler.END
+
+    await update.message.reply_text("Grading...")
+    result = await asyncio.to_thread(
+        grade_answer, problem.prompt, problem.solution_steps, update.message.text or ""
+    )
+
+    parts = [f"{'Correct' if result.correct else 'Incorrect'} ({result.score:.0%})"]
+    parts.append(result.feedback)
+    if not result.correct and result.model_solution:
+        parts.append(f"\nModel solution:\n{result.model_solution}")
+    parts.append("\nSend /practice for another problem or /quiz to resume reviewing.")
+
+    await update.message.reply_text("\n\n".join(parts))
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# /exam
+# ---------------------------------------------------------------------------
+
+@_auth
+async def cmd_exam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    assert update.message is not None
+    if not context.args:
+        await update.message.reply_text("Usage: /exam <category>  e.g. /exam Linear Algebra")
+        return ConversationHandler.END
+
+    category = " ".join(context.args)
+    today = date.today().isoformat()
+
+    await update.message.reply_text(f"Generating {category} exam...")
+
+    report = await asyncio.to_thread(_service.get_gap_report)
+    problems = await asyncio.to_thread(
+        generate_exam, category, n_questions=5, weak_topics=report.flagged_topics
+    )
+    if not problems:
+        await update.message.reply_text("Exam generation failed. Please try again.")
+        return ConversationHandler.END
+
+    difficult_topics = {dq.question.topic for dq in report.difficult_questions}
+    problems = [
+        p.model_copy(update={"is_remedial": p.topic in difficult_topics})
+        for p in problems
+    ]
+
+    pdf_bytes = await asyncio.to_thread(render_exam_pdf, problems, category, today)
+    context.user_data[_KEY_EXAM_PROBLEMS] = problems  # type: ignore[index]
+
+    filename = f"exam_{category.lower().replace(' ', '_')}_{today}.pdf"
+    await update.message.reply_document(
+        document=io.BytesIO(pdf_bytes),
+        filename=filename,
+        caption="Reply with your typed answers or send a photo of your completed work.",
+    )
+    return AWAITING_EXAM_ANSWER
+
+
+@_auth
+async def handle_exam_submission(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    assert update.message is not None
+    assert context.user_data is not None
+    problems = context.user_data.get(_KEY_EXAM_PROBLEMS)
+    if problems is None:
+        return ConversationHandler.END
+
+    await update.message.reply_text("Grading your exam...")
+
+    if update.message.photo:
+        photo = update.message.photo[-1]
+        file = await photo.get_file()
+        image_bytes = bytes(await file.download_as_bytearray())
+        result = await asyncio.to_thread(grade_from_image, problems, image_bytes)
+    else:
+        result = await asyncio.to_thread(grade_from_text, problems, update.message.text or "")
+
+    parts = [f"Score: {result.total_score:.0%}", result.summary]
+    for p in result.problems:
+        parts.append(f"Problem {p.number}: {p.score:.0%} - {p.feedback}")
+    if result.error:
+        parts.append(f"Note: {result.error}")
+
+    await update.message.reply_text("\n\n".join(parts))
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# /stats, /cancel
+# ---------------------------------------------------------------------------
+
 @_auth
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle the /stats command: show pool size, due count, and streak.
-
-    Args:
-        update: The incoming Telegram update.
-        context: Handler context (unused).
-
-    Note:
-        Streak = consecutive calendar days with at least one answer, counting
-        back from today. Multiple answers on the same day count as one.
-
-        New (never-answered) questions have next_review == created_date and
-        are counted as due, so the total reflects questions ready to study.
-    """
     assert update.message is not None
-    questions = _backend.load_questions()
     today = date.today().isoformat()
-    due = [q for q in questions if q.next_review <= today]
-
-    entries = _backend.load_answers()
-    dates_with_answers = sorted({e.date for e in entries}, reverse=True)
-    streak = 0
-    check = date.fromisoformat(today)
-    for d in dates_with_answers:
-        if d == check.isoformat():
-            streak += 1
-            check -= timedelta(days=1)
-        else:
-            break
-
+    total, due_count = _service.get_stats(today)
     await update.message.reply_text(
-        f"📊 Quiz Stats\n"
-        f"Total questions: {len(questions)}\n"
-        f"Due today: {len(due)}\n"
-        f"Current streak: {streak} day{'s' if streak != 1 else ''}"
+        f"Quiz Stats\nTotal questions: {total}\nDue today: {due_count}"
     )
 
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     assert update.message is not None
-    qmap: dict[str, Question] | None = (context.user_data or {}).get("qmap")
-    if qmap:
-        _backend.save_questions(list(qmap.values()))
+    session: QuizSession | None = (context.user_data or {}).get(_KEY_SESSION)
+    if session:
+        _service.end_session(session)
     await update.message.reply_text("Session cancelled.")
     return ConversationHandler.END
 
 
-def main() -> None:
-    """Build the bot application and start long-polling.
+# ---------------------------------------------------------------------------
+# Application setup
+# ---------------------------------------------------------------------------
 
-    Note:
-        Uses long-polling rather than a webhook: simpler behind NAT (no port
-        forwarding or TLS needed). A webhook cannot run alongside this process
-        for the same token.
-    """
-    app = Application.builder().token(_settings.telegram_bot_token).build()
+def main() -> None:
+    app = Application.builder().token(settings.telegram_bot_token).build()
 
     conv = ConversationHandler(
-        entry_points=[CommandHandler("quiz", generate_and_start_quiz)],
+        entry_points=[
+            CommandHandler("quiz", generate_and_start_quiz),
+            CommandHandler("practice", cmd_practice),
+            CommandHandler("exam", cmd_exam),
+        ],
         states={
             AWAITING_ANSWER: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_answer)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_answer),
+            ],
+            AWAITING_PRACTICE_ANSWER: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_practice_answer),
+            ],
+            AWAITING_EXAM_ANSWER: [
+                MessageHandler(
+                    (filters.TEXT | filters.PHOTO) & ~filters.COMMAND,
+                    handle_exam_submission,
+                ),
             ],
         },
         fallbacks=[
             CommandHandler("cancel", cmd_cancel),
             CommandHandler("quiz", generate_and_start_quiz),
+            CommandHandler("practice", cmd_practice),
+            CommandHandler("exam", cmd_exam),
         ],
     )
 

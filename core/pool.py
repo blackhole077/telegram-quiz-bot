@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from quiz.constants import QUESTIONS_FILE
-from quiz.schemas import Question
+from core.constants import QUESTIONS_FILE
+from core.schemas import Question
 
 
 def load(path: str | Path = QUESTIONS_FILE) -> list[Question]:

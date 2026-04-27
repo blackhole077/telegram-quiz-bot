@@ -15,7 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from quiz.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, Reference
+from core.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, QuizSession, Reference
+from core.llm_schemas import LLMBackend
 
 ALLOWED_USER_ID = 99999
 
@@ -86,6 +87,23 @@ def make_context(user_data: dict | None = None) -> MagicMock:
     return ctx
 
 
+def make_session(
+    questions: list[Question],
+    display_questions: list[Question] | None = None,
+    cursor: int = 0,
+    score: int = 0,
+) -> QuizSession:
+    if display_questions is None:
+        display_questions = questions
+    return QuizSession(
+        session_ids=[q.id for q in questions],
+        cursor=cursor,
+        score=score,
+        original_map={q.id: q for q in questions},
+        display_map={q.id: q for q in display_questions},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -112,3 +130,57 @@ def binary() -> Question:
         options=["Yes", "No"],
         correct="A",
     )
+
+
+# ---------------------------------------------------------------------------
+# LLM test doubles
+# ---------------------------------------------------------------------------
+
+
+class MockBackend:
+    """LLMBackend test double: captures call arguments and returns a canned response."""
+
+    def __init__(self, response: str) -> None:
+        self._response = response
+        self.last_system: str = ""
+        self.last_user: str = ""
+        self.last_image_bytes: bytes | None = None
+        self.last_media_type: str = ""
+
+    def chat(self, system: str, user: str) -> str:
+        self.last_system = system
+        self.last_user = user
+        self.last_image_bytes = None
+        return self._response
+
+    def chat_with_image(
+        self,
+        system: str,
+        user: str,
+        image_bytes: bytes,
+        media_type: str = "image/jpeg",
+    ) -> str:
+        self.last_system = system
+        self.last_user = user
+        self.last_image_bytes = image_bytes
+        self.last_media_type = media_type
+        return self._response
+
+
+class ErrorBackend:
+    """LLMBackend test double that always raises a configurable exception."""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def chat(self, system: str, user: str) -> str:
+        raise self._exc
+
+    def chat_with_image(
+        self,
+        system: str,
+        user: str,
+        image_bytes: bytes,
+        media_type: str = "image/jpeg",
+    ) -> str:
+        raise self._exc

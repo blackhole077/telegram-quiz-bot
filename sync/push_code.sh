@@ -18,7 +18,3 @@ rsync -avz --checksum --delete \
     -e "ssh -p 9022"\
     "$REPO_ROOT/" \
     "${REMOTE_HOST}:${REMOTE_APP_PATH}/"
-
-echo "Code pushed. Rebuilding container..."
-ssh -p 9022 "${REMOTE_HOST}" "cd ${REMOTE_APP_PATH}/bot && sudo docker compose up -d --build"
-echo "Done."

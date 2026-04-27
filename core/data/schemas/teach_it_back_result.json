@@ -1,0 +1,6 @@
+{
+  "score": "number 0.0-1.0",
+  "feedback": "string - concise overall assessment",
+  "missing_concepts": ["string - concept or claim the explanation omitted"],
+  "analogy_issues": ["string - description of any analogy that misleads rather than clarifies"]
+}

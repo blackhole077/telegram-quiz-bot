@@ -7,9 +7,9 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from quiz import log as logmod
-from quiz import pool as poolmod
-from quiz.schemas import AnswerLogEntry, Question
+from core import log as logmod
+from core import pool as poolmod
+from core.schemas import AnswerLogEntry, DifficultQuestion, Question
 
 
 @dataclass
@@ -35,6 +35,28 @@ class RefinementReport:
     simplify_ids: list[str] = field(default_factory=list)
     flagged_topics: list[str] = field(default_factory=list)
     retire_ids: list[str] = field(default_factory=list)
+    difficult_questions: list[DifficultQuestion] = field(default_factory=list)
+
+
+def _extract_difficult_questions(
+    qmap: dict[str, Question],
+    min_attempts: int = 3,
+    max_rate: float = 0.5,
+) -> list[DifficultQuestion]:
+    result = []
+    for q in qmap.values():
+        if len(q.history) < min_attempts:
+            continue
+        rate = sum(h.correct for h in q.history) / len(q.history)
+        if rate < max_rate:
+            result.append(
+                DifficultQuestion(
+                    question=q,
+                    correct_answer_rate=rate,
+                    reference_material=q.references[0] if q.references else None,
+                )
+            )
+    return result
 
 
 def analyze_gaps(
@@ -76,6 +98,8 @@ def analyze_gaps(
         if q.level >= 4 and len(q.history) >= 3:
             if all(h.correct for h in q.history[-3:]):
                 report.retire_ids.append(q.id)
+
+    report.difficult_questions = _extract_difficult_questions(qmap)
 
     return report
 

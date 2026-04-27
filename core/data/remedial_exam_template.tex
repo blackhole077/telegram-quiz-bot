@@ -1,0 +1,50 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{graphicx}
+\usepackage{parskip}
+
+% ---------- problem counter and commands ----------
+\newcounter{problem}
+
+% In a remedial exam all problems are remedial, so \problem and \rproblem are identical.
+\newcommand*{\problem}[1]{%
+  \stepcounter{problem}%
+  \vspace{0.6cm}%
+  \noindent\textbf{\large Problem \arabic{problem}} \hfill \emph{#1}%
+  \par\smallskip%
+}
+
+\newcommand*{\rproblem}[1]{\problem{#1}}
+
+\newcounter{solution}
+\newcommand*{\solution}[1]{%
+  \stepcounter{solution}%
+  \vspace{0.4cm}%
+  \noindent\textbf{\large Solution \arabic{solution}} \hfill \emph{#1}%
+  \par\smallskip%
+}
+
+\newcommand*{\rsolution}[1]{\solution{#1}}
+
+% ---------- metadata (filled in by Python) ----------
+\title{Remedial Review: VAR_TITLE}
+\author{}
+\date{VAR_DATE}
+
+\begin{document}
+\maketitle
+\thispagestyle{plain}
+
+\noindent\textit{These problems target concepts where your answer history shows consistent difficulty.}
+\vspace{0.4cm}
+
+\input{content}
+
+\end{document}

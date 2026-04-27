@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from quiz.schemas import HistoryEntry
-from quiz.selector import select_session
+from core.schemas import HistoryEntry
+from core.selector import select_session
 from tests.conftest import make_question
 
 TODAY = "2026-04-20"

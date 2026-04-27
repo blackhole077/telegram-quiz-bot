@@ -6,8 +6,8 @@ from datetime import date, timedelta
 
 import pytest
 
-from quiz.constants import SRS_INTERVALS
-from quiz.srs import advance, demote
+from core.constants import SRS_INTERVALS
+from core.srs import advance, demote
 from tests.conftest import make_question
 
 TODAY = "2026-04-20"
@@ -41,7 +41,7 @@ class TestAdvance:
         assert q2.history[-1].correct is True
 
     def test_history_grows_cumulatively(self):
-        from quiz.schemas import HistoryEntry
+        from core.schemas import HistoryEntry
         existing = [HistoryEntry(date="2026-01-01", correct=True)]
         q = make_question(history=existing)
         q2 = advance(q, today=TODAY)

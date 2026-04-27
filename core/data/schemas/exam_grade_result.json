@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "number": "integer",
+      "score": "number 0.0-1.0",
+      "feedback": "string"
+    }
+  ],
+  "total_score": "number 0.0-1.0",
+  "summary": "string - overall feedback paragraph"
+}

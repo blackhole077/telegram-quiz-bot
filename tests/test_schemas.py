@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from quiz.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, Reference
+from core.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, Reference
 from tests.conftest import make_log_entry, make_question, make_ref
 
 

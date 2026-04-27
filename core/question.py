@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 import re
 
-from quiz.schemas import Question, QuestionType
+from core.schemas import Question, QuestionType
 
 OPTION_PREFIX = re.compile(r"^[A-Da-d][).:]\s+")
 
@@ -24,8 +24,8 @@ def labels(q: Question) -> list[str]:
     )
 
 
-def shuffle(q: Question) -> Question:
-    """Return a copy of q with options shuffled and correct updated.
+def shuffle_answers(q: Question) -> Question:
+    """Return a copy of q with answer options shuffled and correct updated.
 
     Args:
         q: The question to shuffle.
@@ -142,7 +142,7 @@ def normalise_answer(text: str, q: Question) -> str | None:
     Note:
         For TRUE_OR_FALSE, "True"/"T" maps to "A" and "False"/"F" maps to
         "B". This mapping is fixed because true/false options are never
-        shuffled (see shuffle).
+        shuffled (see shuffle_answers).
     """
     t = text.strip().upper()
     if q.type is QuestionType.TRUE_OR_FALSE:

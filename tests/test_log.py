@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from quiz import log as logmod
-from quiz.schemas import AnswerLogEntry
+from core import log as logmod
+from core.schemas import AnswerLogEntry
 from tests.conftest import make_log_entry
 
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from quiz.constants import SRS_INTERVALS
-from quiz.schemas import HistoryEntry, Question
+from core.constants import SRS_INTERVALS
+from core.schemas import HistoryEntry, Question
 
 
 def _interval(level: int) -> int:

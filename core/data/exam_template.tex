@@ -1,0 +1,60 @@
+\documentclass[12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{graphicx}
+\usepackage{parskip}
+
+% ---------- problem counter and commands ----------
+\newcounter{problem}
+
+% \problem{topic} -- auto-numbered, shows topic on the right
+\newcommand*{\problem}[1]{%
+  \stepcounter{problem}%
+  \vspace{0.6cm}%
+  \noindent\textbf{\large Problem \arabic{problem}} \hfill \emph{#1}%
+  \par\smallskip%
+}
+
+% \rproblem{topic} -- remedial variant used in mixed exams; appends (Review) label
+\newcommand*{\rproblem}[1]{%
+  \stepcounter{problem}%
+  \vspace{0.6cm}%
+  \noindent\textbf{\large Problem \arabic{problem}} \hfill \emph{#1\ (Review)}%
+  \par\smallskip%
+}
+
+% \solution{topic} -- mirrors \problem for the answer key
+\newcounter{solution}
+\newcommand*{\solution}[1]{%
+  \stepcounter{solution}%
+  \vspace{0.4cm}%
+  \noindent\textbf{\large Solution \arabic{solution}} \hfill \emph{#1}%
+  \par\smallskip%
+}
+
+% \rsolution{topic} -- mirrors \rproblem for the answer key
+\newcommand*{\rsolution}[1]{%
+  \stepcounter{solution}%
+  \vspace{0.4cm}%
+  \noindent\textbf{\large Solution \arabic{solution}} \hfill \emph{#1\ (Review)}%
+  \par\smallskip%
+}
+
+% ---------- metadata (filled in by Python) ----------
+\title{VAR_TITLE}
+\author{}
+\date{VAR_DATE}
+
+\begin{document}
+\maketitle
+\thispagestyle{plain}
+
+\input{content}
+
+\end{document}

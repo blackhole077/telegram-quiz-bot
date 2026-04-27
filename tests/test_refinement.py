@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from quiz.refinement import RefinementReport, analyze_gaps
-from quiz.schemas import HistoryEntry
-from tests.conftest import make_log_entry, make_question
+from core.refinement import RefinementReport, analyze_gaps
+from core.schemas import DifficultQuestion, HistoryEntry
+from tests.conftest import make_log_entry, make_question, make_ref
 
 
 def _wrong(qid: str, topic: str = "DQN", date: str = "2026-04-01") -> object:
@@ -152,3 +152,66 @@ class TestRetireIds:
         original_len = len(entries)
         analyze_gaps(entries, [q])
         assert len(entries) == original_len
+
+
+class TestDifficultQuestions:
+    def _q(self, id: str, topic: str, *corrects: bool, refs: bool = True):
+        history = [HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c) for i, c in enumerate(corrects)]
+        return make_question(
+            id=id,
+            topic=topic,
+            history=history,
+            references=[make_ref()] if refs else [],
+        )
+
+    def _log(self, *qids: str) -> list:
+        return [make_log_entry(qid=q) for q in qids]
+
+    def test_below_min_attempts_excluded(self):
+        q = self._q("q1", "DQN", False, False)  # only 2 attempts
+        report = analyze_gaps(self._log("q1"), [q])
+        assert not any(dq.question.id == "q1" for dq in report.difficult_questions)
+
+    def test_high_correct_rate_excluded(self):
+        q = self._q("q1", "DQN", True, True, False)  # 2/3 correct = 67%
+        report = analyze_gaps(self._log("q1"), [q])
+        assert not any(dq.question.id == "q1" for dq in report.difficult_questions)
+
+    def test_exactly_fifty_percent_excluded(self):
+        q = self._q("q1", "DQN", True, True, False, False)  # 2/4 = 50% -- not < 50%
+        report = analyze_gaps(self._log("q1"), [q])
+        assert not any(dq.question.id == "q1" for dq in report.difficult_questions)
+
+    def test_low_rate_sufficient_attempts_included(self):
+        q = self._q("q1", "DQN", False, False, True)  # 1/3 correct = 33%
+        report = analyze_gaps(self._log("q1"), [q])
+        assert any(dq.question.id == "q1" for dq in report.difficult_questions)
+
+    def test_correct_answer_rate_computed(self):
+        q = self._q("q1", "DQN", False, False, False, True)  # 1/4 = 0.25
+        report = analyze_gaps(self._log("q1"), [q])
+        dq = next(dq for dq in report.difficult_questions if dq.question.id == "q1")
+        assert abs(dq.correct_answer_rate - 0.25) < 1e-9
+
+    def test_reference_material_set_from_first_reference(self):
+        ref = make_ref(doc_id="SUTTON_2018_RL")
+        q = self._q("q1", "DQN", False, False, True)
+        q = make_question(id="q1", history=q.history, references=[ref])
+        report = analyze_gaps(self._log("q1"), [q])
+        dq = next(dq for dq in report.difficult_questions if dq.question.id == "q1")
+        assert dq.reference_material == ref
+
+    def test_no_references_gives_none(self):
+        q = self._q("q1", "DQN", False, False, True, refs=False)
+        report = analyze_gaps(self._log("q1"), [q])
+        dq = next(dq for dq in report.difficult_questions if dq.question.id == "q1")
+        assert dq.reference_material is None
+
+    def test_related_material_defaults_empty(self):
+        q = self._q("q1", "DQN", False, False, True)
+        report = analyze_gaps(self._log("q1"), [q])
+        dq = next(dq for dq in report.difficult_questions if dq.question.id == "q1")
+        assert dq.related_material == []
+
+    def test_empty_report_has_empty_difficult_questions(self):
+        assert analyze_gaps([], []).difficult_questions == []
