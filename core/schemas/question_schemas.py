@@ -81,3 +81,14 @@ class DifficultQuestion(BaseModel):
     correct_answer_rate: float
     reference_material: Reference | None
     related_material: list[str] = []
+
+
+class Problem(BaseModel):
+    """A hand-authored practice problem (word problem / exam-style)."""
+
+    id: str
+    topic: str
+    prompt: str
+    solution_steps: str
+    difficulty: int  # 1-3; soft hint passed to LLM grader
+    uses_latex: bool

@@ -50,15 +50,6 @@ class ExamProblem(BaseModel):
     is_remedial: bool = False
 
 
-class Problem(BaseModel):
-    id: str
-    topic: str
-    prompt: str
-    solution_steps: str
-    difficulty: int  # 1-3; soft hint passed to LLM grader
-    uses_latex: bool
-
-
 class ProblemGrade(BaseModel):
     """Per-problem score and feedback within an ExamGradeResult."""
 

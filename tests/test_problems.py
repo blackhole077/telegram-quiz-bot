@@ -10,7 +10,8 @@ os.environ.setdefault("ALLOWED_USER_ID", "99999")
 
 import pytest
 
-from core.problems import Problem, filter_by_topic, load_problems, pick_random
+from core.question import filter_by_topic, load_problems, pick_random
+from core.schemas.question_schemas import Problem
 
 # ---------------------------------------------------------------------------
 # Fixtures

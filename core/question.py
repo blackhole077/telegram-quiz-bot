@@ -1,11 +1,13 @@
-"""Question formatting, shuffling, and answer normalisation."""
+"""Question formatting, shuffling, answer normalisation, and problem utilities."""
 
 from __future__ import annotations
 
+import json
 import random
+from pathlib import Path
 
 from core.constants import OPTION_PREFIX
-from core.schemas.question_schemas import Question, QuestionType
+from core.schemas.question_schemas import Problem, Question, QuestionType
 
 
 def labels(q: Question) -> list[str]:
@@ -125,6 +127,20 @@ def fmt_feedback(q: Question, correct: bool) -> str:
     ref = _fmt_ref(q)
     ref_suffix = f"\n{ref}" if ref else ""
     return f"{mark}{answer_text} — {q.explanation}{ref_suffix}"
+
+
+def load_problems(path: str | Path) -> list[Problem]:
+    data = json.loads(Path(path).read_text())
+    return [Problem.model_validate(item) for item in data]
+
+
+def filter_by_topic(problems: list[Problem], topic: str) -> list[Problem]:
+    key = topic.lower()
+    return [p for p in problems if p.topic.lower() == key]
+
+
+def pick_random(problems: list[Problem], n: int = 1) -> list[Problem]:
+    return random.sample(problems, min(n, len(problems)))
 
 
 def normalise_answer(text: str, q: Question) -> str | None:

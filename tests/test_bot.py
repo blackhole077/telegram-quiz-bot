@@ -20,7 +20,7 @@ from bot.bot import (AWAITING_ANSWER, AWAITING_EXAM_ANSWER,
                      cmd_practice, cmd_stats, generate_and_start_quiz,
                      handle_answer, handle_exam_submission,
                      handle_practice_answer)
-from core.problems import Problem
+from core.schemas.question_schemas import Problem
 from core.schemas.answer_schemas import AnswerOutcome
 from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
                                       GradeResult, ProblemGrade)
