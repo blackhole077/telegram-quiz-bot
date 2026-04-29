@@ -8,22 +8,17 @@ from __future__ import annotations
 
 import os
 
+from core.schemas.answer_schemas import AnswerLogEntry
+from core.schemas.question_schemas import (HistoryEntry, Question,
+                                           QuestionType, Reference)
+from core.schemas.schemas import QuizSession
+
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")
 os.environ.setdefault("ALLOWED_USER_ID", "99999")
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
-from core.schemas.schemas import (
-    AnswerLogEntry,
-    HistoryEntry,
-    Question,
-    QuestionType,
-    QuizSession,
-    Reference,
-)
-from core.schemas.llm_schemas import LLMBackend
 
 ALLOWED_USER_ID = 99999
 

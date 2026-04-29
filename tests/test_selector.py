@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.schemas.schemas import HistoryEntry
+from core.schemas.question_schemas import HistoryEntry
 from core.selector import select_session
 from tests.conftest import make_question
 

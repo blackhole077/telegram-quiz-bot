@@ -7,7 +7,7 @@ import json
 import pytest
 
 from core import log as logmod
-from core.schemas.schemas import AnswerLogEntry
+from core.schemas.answer_schemas import AnswerLogEntry
 from tests.conftest import make_log_entry
 
 

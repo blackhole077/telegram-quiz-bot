@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from core import pool as poolmod
-from core.schemas.schemas import QuestionType
+from core.schemas.question_schemas import QuestionType
 from tests.conftest import make_question
 
 
@@ -26,7 +26,7 @@ class TestLoad:
         assert loaded[0].id == "q1"
 
     def test_preserves_all_fields(self, tmp_path):
-        from core.schemas.schemas import HistoryEntry
+        from core.schemas.question_schemas import HistoryEntry
 
         entry = HistoryEntry(date="2026-01-01", correct=False)
         q = make_question(id="q99", level=3, history=[entry], correct="C")

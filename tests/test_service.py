@@ -7,15 +7,11 @@ from unittest.mock import MagicMock, call
 import pytest
 
 from core.refinement import RefinementReport
-from core.schemas.schemas import (
-    AnswerLogEntry,
-    DifficultQuestion,
-    HistoryEntry,
-    Question,
-    QuizSession,
-    QuestionType,
-)
-from core.service import AnswerOutcome, QuizService
+from core.schemas.answer_schemas import AnswerLogEntry, AnswerOutcome
+from core.schemas.question_schemas import (DifficultQuestion, HistoryEntry,
+                                           Question, QuestionType)
+from core.schemas.schemas import QuizSession
+from core.service import QuizService
 from core.storage import StorageBackend
 from tests.conftest import make_log_entry, make_question, make_session
 

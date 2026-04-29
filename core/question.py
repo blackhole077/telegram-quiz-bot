@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import random
-import re
 
-from core.schemas.schemas import Question, QuestionType
-
-OPTION_PREFIX = re.compile(r"^[A-Da-d][).:]\s+")
+from core.constants import OPTION_PREFIX
+from core.schemas.question_schemas import Question, QuestionType
 
 
 def labels(q: Question) -> list[str]:

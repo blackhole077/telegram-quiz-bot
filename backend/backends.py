@@ -6,13 +6,9 @@ import sqlite3
 from pathlib import Path
 
 from core import log, pool
-from core.schemas.schemas import (
-    AnswerLogEntry,
-    HistoryEntry,
-    Question,
-    QuestionType,
-    Reference,
-)
+from core.schemas.answer_schemas import AnswerLogEntry
+from core.schemas.question_schemas import (HistoryEntry, Question,
+                                           QuestionType, Reference)
 from core.storage import StorageBackend
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from core.refinement import RefinementReport, analyze_gaps
-from core.schemas.schemas import DifficultQuestion, HistoryEntry
+from core.schemas.question_schemas import HistoryEntry
 from tests.conftest import make_log_entry, make_question, make_ref
 
 

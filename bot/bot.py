@@ -12,19 +12,14 @@ from pathlib import Path
 from typing import Any
 
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import (Application, CommandHandler, ContextTypes,
+                          ConversationHandler, MessageHandler, filters)
 
 from backend import make_backend
 from core.config import settings
 from core.exam import render_exam_pdf
-from core.llm import generate_exam, grade_answer, grade_from_image, grade_from_text
+from core.llm import (generate_exam, grade_answer, grade_from_image,
+                      grade_from_text)
 from core.problems import filter_by_topic, load_problems, pick_random
 from core.question import fmt_feedback, fmt_question, input_hint
 from core.schemas.schemas import QuizSession

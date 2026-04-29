@@ -2,40 +2,18 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
+from core.constants import (ESCAPE_MAP, PLACEHOLDER_DATE, PLACEHOLDER_TITLE,
+                            REMEDIAL_TEMPLATE_SRC, TECTONIC, TEMPLATE_SRC)
 from core.schemas.llm_schemas import ExamProblem
-
-_TEMPLATE = Path(__file__).parent / "data" / "exam_template.tex"
-_REMEDIAL_TEMPLATE = Path(__file__).parent / "data" / "remedial_exam_template.tex"
-_TEMPLATE_SRC = _TEMPLATE.read_text()
-_REMEDIAL_TEMPLATE_SRC = _REMEDIAL_TEMPLATE.read_text()
-_TECTONIC = shutil.which("tectonic") or "tectonic"
-
-_PLACEHOLDER_TITLE = "VAR_TITLE"
-_PLACEHOLDER_DATE = "VAR_DATE"
-
-
-_ESCAPE_MAP = {
-    "\\": r"\textbackslash{}",
-    "&": r"\&",
-    "%": r"\%",
-    "$": r"\$",
-    "#": r"\#",
-    "_": r"\_",
-    "{": r"\{",
-    "}": r"\}",
-    "~": r"\textasciitilde{}",
-    "^": r"\textasciicircum{}",
-}
 
 
 def _escape(text: str) -> str:
     """Escape LaTeX special characters in plain text (single-pass)."""
-    return "".join(_ESCAPE_MAP.get(ch, ch) for ch in text)
+    return "".join(ESCAPE_MAP.get(ch, ch) for ch in text)
 
 
 def _build_content(problems: list[ExamProblem]) -> str:
@@ -69,9 +47,9 @@ def render_exam_pdf(problems: list[ExamProblem], category: str, date: str) -> by
     then invokes tectonic to produce the PDF.
     """
     remedial = bool(problems) and all(p.is_remedial for p in problems)
-    template_src = _REMEDIAL_TEMPLATE_SRC if remedial else _TEMPLATE_SRC
-    template_src = template_src.replace(_PLACEHOLDER_TITLE, _escape(category))
-    template_src = template_src.replace(_PLACEHOLDER_DATE, _escape(date))
+    template_src = REMEDIAL_TEMPLATE_SRC if remedial else TEMPLATE_SRC
+    template_src = template_src.replace(PLACEHOLDER_TITLE, _escape(category))
+    template_src = template_src.replace(PLACEHOLDER_DATE, _escape(date))
 
     content_tex = _build_content(problems)
 
@@ -81,7 +59,7 @@ def render_exam_pdf(problems: list[ExamProblem], category: str, date: str) -> by
         (tmp_path / "content.tex").write_text(content_tex)
 
         result = subprocess.run(
-            [_TECTONIC, "main.tex"],
+            [TECTONIC, "main.tex"],
             cwd=tmp,
             capture_output=True,
             text=True,

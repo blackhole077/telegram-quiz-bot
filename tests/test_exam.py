@@ -10,15 +10,9 @@ import pytest
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")
 os.environ.setdefault("ALLOWED_USER_ID", "99999")
 
-from core.exam import (
-    _REMEDIAL_TEMPLATE,
-    _REMEDIAL_TEMPLATE_SRC,
-    _build_content,
-    _escape,
-    render_exam_pdf,
-)
+from core.constants import REMEDIAL_TEMPLATE_SRC
+from core.exam import _build_content, _escape, render_exam_pdf
 from core.schemas.llm_schemas import ExamProblem
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -192,7 +186,7 @@ class TestRenderExamPdf:
         assert result[:4] == b"%PDF"
 
     def test_remedial_template_contains_remedial_review(self):
-        assert "Remedial Review" in _REMEDIAL_TEMPLATE_SRC
+        assert "Remedial Review" in REMEDIAL_TEMPLATE_SRC
 
     def test_raises_on_compiler_failure(self):
         mock_result = MagicMock()

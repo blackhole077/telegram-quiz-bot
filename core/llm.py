@@ -17,11 +17,12 @@ import io
 import json
 import logging
 from collections import defaultdict
-from pathlib import Path
 
 import openai
 from PIL import Image
 from pydantic import ValidationError
+
+from core.constants import LLM_ROOT
 
 try:
     import pillow_heif
@@ -31,17 +32,11 @@ except ImportError:
     pass
 
 from core.config import settings
-from core.schemas.llm_schemas import (
-    ExamGradeResult,
-    ExamProblem,
-    GradeResult,
-    LLMBackend,
-    TeachItBackResult,
-)
+from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
+                                      GradeResult, LLMBackend,
+                                      TeachItBackResult)
 
 logger = logging.getLogger(__name__)
-
-_DATA_DIR = Path(__file__).parent / "data"
 
 
 # ---------------------------------------------------------------------------
@@ -50,11 +45,11 @@ _DATA_DIR = Path(__file__).parent / "data"
 
 
 def _load_prompt(path: str) -> str:
-    return (_DATA_DIR / "prompts" / path).read_text()
+    return (LLM_ROOT / "prompts" / path).read_text()
 
 
 def _load_schema(name: str) -> str:
-    return (_DATA_DIR / "schemas" / f"{name}.json").read_text().strip()
+    return (LLM_ROOT / "schemas" / f"{name}.json").read_text().strip()
 
 
 def _render(template: str, **kwargs: str) -> str:

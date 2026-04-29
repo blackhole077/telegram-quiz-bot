@@ -12,7 +12,6 @@ import pytest
 
 from core.problems import Problem, filter_by_topic, load_problems, pick_random
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

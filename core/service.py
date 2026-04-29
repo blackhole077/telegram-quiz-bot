@@ -8,22 +8,11 @@ from datetime import date
 from core import srs
 from core.question import normalise_answer, shuffle_answers
 from core.refinement import RefinementReport, analyze_gaps
-from core.schemas.schemas import (
-    AnswerLogEntry,
-    DifficultQuestion,
-    Question,
-    QuizSession,
-)
+from core.schemas.answer_schemas import AnswerLogEntry, AnswerOutcome
+from core.schemas.question_schemas import DifficultQuestion, Question
+from core.schemas.schemas import QuizSession
 from core.selector import select_session
 from core.storage import StorageBackend
-
-
-@dataclass
-class AnswerOutcome:
-    """Result of processing one answer through the service."""
-
-    correct: bool
-    graded_question: Question
 
 
 class QuizService:

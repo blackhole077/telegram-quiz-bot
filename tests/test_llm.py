@@ -13,30 +13,18 @@ os.environ.setdefault("LLM_API_KEY", "ollama")
 os.environ.setdefault("LLM_MODEL", "qwen2.5-vl:32b")
 
 import base64
+from unittest.mock import MagicMock, patch
 
 import openai
 import pytest
 from PIL import Image
-from unittest.mock import MagicMock, patch
 
-from core.schemas.llm_schemas import (
-    ExamGradeResult,
-    ExamProblem,
-    GradeResult,
-    TeachItBackResult,
-)
-from core.llm import (
-    OpenAIBackend,
-    generate_exam,
-    grade_answer,
-    grade_from_image,
-    grade_from_text,
-    grade_teach_it_back,
-    normalize_image,
-    override_backend,
-)
+from core.llm import (OpenAIBackend, generate_exam, grade_answer,
+                      grade_from_image, grade_from_text, grade_teach_it_back,
+                      normalize_image, override_backend)
+from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
+                                      GradeResult, TeachItBackResult)
 from tests.conftest import ErrorBackend, MockBackend
-
 
 # ---------------------------------------------------------------------------
 # Image helpers

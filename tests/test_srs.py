@@ -46,7 +46,7 @@ class TestAdvance:
         assert q2.history[-1].correct is True
 
     def test_history_grows_cumulatively(self):
-        from core.schemas.schemas import HistoryEntry
+        from core.schemas.question_schemas import HistoryEntry
 
         existing = [HistoryEntry(date="2026-01-01", correct=True)]
         q = make_question(history=existing)
