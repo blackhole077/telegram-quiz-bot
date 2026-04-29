@@ -1,0 +1,18 @@
+<div class="quiz-card feedback-card">
+    <div class="feedback-header {% if correct %}feedback-correct{% else %}feedback-incorrect{% endif %}">
+        {% if correct %}Correct!{% else %}Incorrect{% endif %}
+    </div>
+    {% if not correct %}
+    <p class="correct-answer">
+        Correct answer: <strong>{{ correct_label }}.</strong> {{ correct_text }}
+    </p>
+    {% endif %}
+    <p class="explanation">{{ explanation }}</p>
+    {% if ref %}
+    <p class="reference">{{ ref.authors }} ({{ ref.year }}) - {{ ref.section }}</p>
+    {% endif %}
+    <button class="next-btn" hx-get="{{ next_url }}" hx-target="{{ target }}" hx-swap="innerHTML"
+        hx-trigger="click, keyup[key=='Enter'] from:body">
+        {% if is_last %}See Results{% else %}Next Question{% endif %}
+    </button>
+</div>

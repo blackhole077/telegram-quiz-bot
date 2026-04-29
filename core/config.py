@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_REPO_ROOT = Path(__file__).parent.parent
+
 
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables or ``.env``.
@@ -18,14 +20,13 @@ class Settings(BaseSettings):
     ``pool_path`` and ``log_path`` are used by the filesystem backend and
     by external tools (``refinement.py``, sync scripts).
 
-    The ``.env`` file is resolved relative to the **process working
-    directory**, not the ``bot/`` package directory. When running
-    ``python -m bot.bot`` from the repo root, place ``.env`` at
-    the repo root. When running via Docker, ensure the container
-    working directory matches the path where ``.env`` is mounted.
+    ``.env`` is resolved relative to the repo root, so the server can be
+    started from any working directory.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=_REPO_ROOT / ".env", env_file_encoding="utf-8"
+    )
 
     data_dir: str = "/data"
     storage_type: str = "filesystem"

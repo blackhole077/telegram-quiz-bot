@@ -1,0 +1,20 @@
+<div class="quiz-card">
+    <div class="card-header">
+        <span class="topic-badge">{{ question.topic }}</span>
+        <span class="progress">{{ cursor + 1 }} / {{ total }}</span>
+    </div>
+    <p class="question-text">{{ question.question }}</p>
+    {% if error %}
+    <p class="error-msg">{{ error }}</p>
+    {% endif %}
+    <div class="options" id="options-container">
+        {% for opt in options %}
+        <button class="option-btn" hx-post="{{ answer_url }}" hx-vals='{"answer": "{{ opt.answer_val }}"}'
+            hx-target="{{ target }}" hx-swap="innerHTML" hx-trigger="click, keyup[key=='{{ opt.key_num }}'] from:body"
+            hx-sync="#options-container:drop" hx-disabled-elt="this">
+            <span class="option-label">{{ opt.label }}</span>
+            <span class="option-text">{{ opt.text }}</span>
+        </button>
+        {% endfor %}
+    </div>
+</div>

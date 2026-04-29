@@ -1,0 +1,19 @@
+<form hx-post="/exam/submit" hx-target="#exam-area" hx-swap="innerHTML"
+    hx-indicator="#exam-loading">
+    {% for problem in problems %}
+    <div class="exam-problem">
+        <div class="problem-header">
+            <span class="problem-number">Problem {{ problem.number }}</span>
+            {% if problem.topic %}<span class="problem-topic">{{ problem.topic }}</span>{% endif %}
+            {% if problem.is_remedial %}<span class="problem-remedial">Remedial</span>{% endif %}
+        </div>
+        <p class="problem-prompt">{{ problem.prompt }}</p>
+        <textarea name="answer" class="answer-textarea"
+            placeholder="Your answer for problem {{ problem.number }}..."></textarea>
+    </div>
+    {% endfor %}
+    <button type="submit" class="start-btn">Submit Exam</button>
+</form>
+<div id="exam-loading" class="htmx-indicator loading-indicator">
+    Grading your answers...
+</div>

@@ -8,7 +8,7 @@ from core.schemas.question_schemas import Question
 
 
 class QuizSession(BaseModel):
-    """Mutable state for one quiz session, stored in Telegram's context.user_data.
+    """Mutable state for one quiz session.
 
     ``original_map`` holds only the *due* questions (not the full pool) so
     ``service.end_session`` can merge them back into the full pool on save.

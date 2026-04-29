@@ -73,7 +73,7 @@ def _fmt_ref(question: Question) -> str:
     return f"From {ref.authors} ({ref.year}) · {ref.section}" if ref else ""
 
 
-def _clean_option(opt: str) -> str:
+def clean_option(opt: str) -> str:
     return OPTION_PREFIX.sub("", opt)
 
 
@@ -94,7 +94,7 @@ def fmt_question(question: Question, position: int, total: int) -> str:
         body = question.question
     else:
         opts = "\n".join(
-            f"  {label}  {_clean_option(opt)}"
+            f"  {label}  {clean_option(opt)}"
             for label, opt in zip(lbls, question.options)
         )
         body = f"{question.question}\n\n{opts}"
@@ -122,7 +122,7 @@ def fmt_feedback(question: Question, correct: bool) -> str:
         if question.correct in lbls:
             idx = lbls.index(question.correct)
             answer_text = (
-                f"\nCorrect answer: {question.correct}  {_clean_option(question.options[idx])}"
+                f"\nCorrect answer: {question.correct}  {clean_option(question.options[idx])}"
             )
         else:
             answer_text = f"\nCorrect answer: {question.correct}"

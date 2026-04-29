@@ -1,0 +1,21 @@
+<div class="quiz-card summary-card">
+    <h2 class="summary-title">{{ category }} - Exam Results</h2>
+    {% if error %}
+    <p class="error-msg">{{ error }}</p>
+    {% else %}
+    <p class="score">{{ "%.0f"|format(total_score * 100) }}%</p>
+    {% if summary %}<p class="score-label">{{ summary }}</p>{% endif %}
+    {% endif %}
+    <div class="exam-results-list">
+        {% for grade in grades %}
+        <div class="exam-result-item">
+            <div class="exam-result-header">
+                <span class="exam-result-number">Problem {{ grade.number }}</span>
+                <span class="exam-result-score">{{ "%.0f"|format(grade.score * 100) }}%</span>
+            </div>
+            <p class="exam-result-feedback">{{ grade.feedback }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    <a href="/exam" class="start-btn">New Exam</a>
+</div>

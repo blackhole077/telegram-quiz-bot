@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practice</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"
+        integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+        crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <script>
+        function _renderMath(root) {
+            renderMathInElement(root, {
+                delimiters: [
+                    { left: "\\[", right: "\\]", display: true },
+                    { left: "\\(", right: "\\)", display: false }
+                ],
+                throwOnError: false
+            });
+        }
+        document.addEventListener("DOMContentLoaded", () => _renderMath(document.body));
+        document.addEventListener("htmx:afterSwap", (evt) => _renderMath(evt.detail.elt));
+    </script>
+</head>
+
+<body>
+    <div class="page">
+        <header class="header">
+            <h1>Practice</h1>
+        </header>
+        <nav class="mode-nav">
+            <a href="/" class="nav-link">Review</a>
+            <a href="/practice" class="nav-link active">Practice</a>
+            <a href="/exam" class="nav-link">Exam</a>
+        </nav>
+        <main>
+            <div id="practice-area">
+                <form hx-post="/practice/start" hx-target="#practice-area" hx-swap="innerHTML">
+                    <div class="config-form">
+                        <div class="config-field">
+                            <label for="topic">Topic</label>
+                            <select id="topic" name="topic">
+                                <option value="">All topics</option>
+                                {% for topic in topics %}
+                                <option value="{{ topic }}">{{ topic }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="config-field">
+                            <label for="count">Questions</label>
+                            <input id="count" type="number" name="count" value="10" min="1" max="50">
+                        </div>
+                        <button type="submit" class="start-btn">Start Practice</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

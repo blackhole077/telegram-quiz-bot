@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from datetime import date
 
@@ -87,6 +88,21 @@ class QuizService:
         updated_map = {q.id: q for q in all_questions}
         updated_map.update(session.original_map)
         self._backend.save_questions(list(updated_map.values()))
+
+    def get_topics(self) -> list[str]:
+        """Return sorted list of unique topics across the question pool."""
+        return sorted({q.topic for q in self._backend.load_questions()})
+
+    def prepare_practice(self, topic: str | None = None, count: int = 10) -> list[Question]:
+        """Return a random sample of questions, optionally filtered by topic.
+
+        Unlike prepare_session, this makes no SRS state changes.
+        """
+        questions = self._backend.load_questions()
+        if topic:
+            questions = [q for q in questions if q.topic.lower() == topic.lower()]
+        random.shuffle(questions)
+        return questions[:count]
 
     def get_stats(self, today: str) -> tuple[int, int]:
         """Return (total_questions, due_today_count)."""

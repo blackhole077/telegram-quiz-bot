@@ -1,0 +1,30 @@
+<div id="quiz-stats" hx-swap-oob="true">
+    <span>{{ total_questions }} questions</span>
+    <span class="sep">·</span>
+    <span>{{ new_due }} due today</span>
+</div>
+<div class="quiz-card summary-card">
+    <h2 class="summary-title">Session Complete</h2>
+    <p class="score">{{ score }} / {{ total }}</p>
+    {% if wrong_answers %}
+    <details class="wrong-answers">
+        <summary class="wrong-answers-toggle">
+            {{ wrong_answers | length }} question{{ 's' if wrong_answers | length != 1 else '' }} missed
+        </summary>
+        <div class="wrong-answers-list">
+            {% for item in wrong_answers %}
+            <div class="wrong-item">
+                <p class="wrong-question">{{ item.question_text }}</p>
+                <p class="wrong-correct">
+                    Correct: <strong>{{ item.correct_label }}.</strong> {{ item.correct_text }}
+                </p>
+                <p class="wrong-explanation">{{ item.explanation }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+    <button class="start-btn" hx-post="/quiz/start" hx-target="#quiz-area" hx-swap="innerHTML">
+        Start New Quiz
+    </button>
+</div>

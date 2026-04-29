@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam</title>
+    <script src="https://unpkg.com/htmx.org@2.0.0"
+        integrity="sha384-wS5l5IKJBvK6sPTKa2WZ1js3d947pvWXbPJ1OmWfEuxLgeHcEbjUUA5i9V5ZkpCw"
+        crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <script>
+        function _renderMath(root) {
+            renderMathInElement(root, {
+                delimiters: [
+                    { left: "\\[", right: "\\]", display: true },
+                    { left: "\\(", right: "\\)", display: false }
+                ],
+                throwOnError: false
+            });
+        }
+        document.addEventListener("DOMContentLoaded", () => _renderMath(document.body));
+        document.addEventListener("htmx:afterSwap", (evt) => _renderMath(evt.detail.elt));
+    </script>
+</head>
+
+<body>
+    <div class="page">
+        <header class="header">
+            <h1>Exam</h1>
+        </header>
+        <nav class="mode-nav">
+            <a href="/" class="nav-link">Review</a>
+            <a href="/practice" class="nav-link">Practice</a>
+            <a href="/exam" class="nav-link active">Exam</a>
+        </nav>
+        <main>
+            <div id="exam-area">
+                <form hx-post="/exam/start" hx-target="#exam-area" hx-swap="innerHTML"
+                    hx-indicator="#exam-loading">
+                    <div class="config-form">
+                        <div class="config-field">
+                            <label for="category">Category</label>
+                            <input id="category" type="text" name="category" placeholder="e.g. Linear Algebra"
+                                required>
+                        </div>
+                        <div class="config-field">
+                            <label for="count">Questions</label>
+                            <input id="count" type="number" name="count" value="5" min="1" max="10">
+                        </div>
+                        <button type="submit" class="start-btn">Generate Exam</button>
+                    </div>
+                </form>
+                <div id="exam-loading" class="htmx-indicator loading-indicator">
+                    Generating exam problems...
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>
