@@ -27,19 +27,19 @@ from core.exam import render_exam_pdf
 from core.llm import generate_exam, grade_answer, grade_from_image, grade_from_text
 from core.problems import filter_by_topic, load_problems, pick_random
 from core.question import fmt_feedback, fmt_question, input_hint
-from core.schemas import QuizSession
+from core.schemas.schemas import QuizSession
 from core.service import QuizService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-AWAITING_ANSWER          = 1
+AWAITING_ANSWER = 1
 AWAITING_PRACTICE_ANSWER = 2
-AWAITING_EXAM_ANSWER     = 3
+AWAITING_EXAM_ANSWER = 3
 
-_KEY_SESSION          = "session"
+_KEY_SESSION = "session"
 _KEY_PRACTICE_PROBLEM = "practice_problem"
-_KEY_EXAM_PROBLEMS    = "exam_problems"
+_KEY_EXAM_PROBLEMS = "exam_problems"
 
 _PROBLEMS_PATH = Path(settings.data_dir) / "problems.json"
 try:
@@ -80,6 +80,7 @@ def _auth(func: _Handler) -> _Handler:
 # /quiz
 # ---------------------------------------------------------------------------
 
+
 @_auth
 async def generate_and_start_quiz(
     update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -97,7 +98,9 @@ async def generate_and_start_quiz(
 
     session = _service.start_session(due)
     context.user_data[_KEY_SESSION] = session  # type: ignore[index]
-    await update.message.reply_text(fmt_question(session.current_display, 1, session.total))
+    await update.message.reply_text(
+        fmt_question(session.current_display, 1, session.total)
+    )
     return AWAITING_ANSWER
 
 
@@ -115,7 +118,9 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return AWAITING_ANSWER
 
-    await update.message.reply_text(fmt_feedback(outcome.graded_question, outcome.correct))
+    await update.message.reply_text(
+        fmt_feedback(outcome.graded_question, outcome.correct)
+    )
 
     if session.is_complete:
         await asyncio.to_thread(_service.end_session, session)
@@ -134,6 +139,7 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 # ---------------------------------------------------------------------------
 # /practice
 # ---------------------------------------------------------------------------
+
 
 @_auth
 async def cmd_practice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -188,11 +194,14 @@ async def handle_practice_answer(
 # /exam
 # ---------------------------------------------------------------------------
 
+
 @_auth
 async def cmd_exam(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     assert update.message is not None
     if not context.args:
-        await update.message.reply_text("Usage: /exam <category>  e.g. /exam Linear Algebra")
+        await update.message.reply_text(
+            "Usage: /exam <category>  e.g. /exam Linear Algebra"
+        )
         return ConversationHandler.END
 
     category = " ".join(context.args)
@@ -244,7 +253,9 @@ async def handle_exam_submission(
         image_bytes = bytes(await file.download_as_bytearray())
         result = await asyncio.to_thread(grade_from_image, problems, image_bytes)
     else:
-        result = await asyncio.to_thread(grade_from_text, problems, update.message.text or "")
+        result = await asyncio.to_thread(
+            grade_from_text, problems, update.message.text or ""
+        )
 
     parts = [f"Score: {result.total_score:.0%}", result.summary]
     for p in result.problems:
@@ -259,6 +270,7 @@ async def handle_exam_submission(
 # ---------------------------------------------------------------------------
 # /stats, /cancel
 # ---------------------------------------------------------------------------
+
 
 @_auth
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -282,6 +294,7 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # ---------------------------------------------------------------------------
 # Application setup
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     app = Application.builder().token(settings.telegram_bot_token).build()

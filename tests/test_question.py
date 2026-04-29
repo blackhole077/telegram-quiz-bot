@@ -12,7 +12,7 @@ from core.question import (
     normalise_answer,
     shuffle_answers,
 )
-from core.schemas import QuestionType
+from core.schemas.schemas import QuestionType
 from tests.conftest import make_question, make_ref
 
 
@@ -64,11 +64,15 @@ class TestShuffle:
     def test_mcq_correct_label_updated(self):
         q = make_question(options=["A_txt", "B_txt", "C_txt", "D_txt"], correct="A")
         shuffled = shuffle_answers(q)
-        correct_text_in_shuffled = shuffled.options[labels(shuffled).index(shuffled.correct)]
+        correct_text_in_shuffled = shuffled.options[
+            labels(shuffled).index(shuffled.correct)
+        ]
         assert correct_text_in_shuffled == "A_txt"
 
     def test_binary_is_shuffled(self):
-        q = make_question(qtype=QuestionType.BINARY_CHOICE, options=["Yes", "No"], correct="A")
+        q = make_question(
+            qtype=QuestionType.BINARY_CHOICE, options=["Yes", "No"], correct="A"
+        )
         results = {shuffle_answers(q).correct for _ in range(30)}
         assert len(results) == 2
 

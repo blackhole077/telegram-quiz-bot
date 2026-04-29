@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 import re
 
-from core.schemas import Question, QuestionType
+from core.schemas.schemas import Question, QuestionType
 
 OPTION_PREFIX = re.compile(r"^[A-Da-d][).:]\s+")
 

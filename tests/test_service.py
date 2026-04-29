@@ -7,7 +7,14 @@ from unittest.mock import MagicMock, call
 import pytest
 
 from core.refinement import RefinementReport
-from core.schemas import AnswerLogEntry, DifficultQuestion, HistoryEntry, Question, QuizSession, QuestionType
+from core.schemas.schemas import (
+    AnswerLogEntry,
+    DifficultQuestion,
+    HistoryEntry,
+    Question,
+    QuizSession,
+    QuestionType,
+)
 from core.service import AnswerOutcome, QuizService
 from core.storage import StorageBackend
 from tests.conftest import make_log_entry, make_question, make_session
@@ -94,7 +101,9 @@ class TestStartSession:
             assert session.display_map["tof"].options == ["True", "False"]
 
     def test_mcq_options_same_set_after_shuffle(self, service):
-        q = make_question(id="q1", options=["alpha", "beta", "gamma", "delta"], correct="A")
+        q = make_question(
+            id="q1", options=["alpha", "beta", "gamma", "delta"], correct="A"
+        )
         for _ in range(20):
             session = service.start_session([q])
             assert sorted(session.display_map["q1"].options) == sorted(q.options)
@@ -228,7 +237,10 @@ class TestGetGapReport:
 
 class TestGetDifficultQuestions:
     def _struggling_question(self, id: str = "q1") -> Question:
-        history = [HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c) for i, c in enumerate([False, False, True])]
+        history = [
+            HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c)
+            for i, c in enumerate([False, False, True])
+        ]
         return make_question(id=id, history=history)
 
     def test_returns_difficult_questions(self, service, mock_backend):
@@ -246,7 +258,9 @@ class TestGetDifficultQuestions:
         assert all(isinstance(dq, DifficultQuestion) for dq in result)
 
     def test_question_with_high_correct_rate_excluded(self, service, mock_backend):
-        history = [HistoryEntry(date=f"2026-04-{i+1:02d}", correct=True) for i in range(3)]
+        history = [
+            HistoryEntry(date=f"2026-04-{i+1:02d}", correct=True) for i in range(3)
+        ]
         q = make_question(id="q1", history=history)
         mock_backend.load_questions.return_value = [q]
         mock_backend.load_answers.return_value = [make_log_entry()]

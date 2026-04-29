@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from datetime import date
 
-from core.schemas import Question
+from core.schemas.schemas import Question
 
 
 def select_session(

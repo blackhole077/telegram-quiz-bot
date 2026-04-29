@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from core.schemas import HistoryEntry
+from core.schemas.schemas import HistoryEntry
 from core.selector import select_session
 from tests.conftest import make_question
 
 TODAY = "2026-04-20"
-PAST = "2026-01-01"   # earlier than TODAY → overdue
-FUTURE = "2026-12-31" # later than TODAY → not yet due
+PAST = "2026-01-01"  # earlier than TODAY → overdue
+FUTURE = "2026-12-31"  # later than TODAY → not yet due
 
 
 def _answered(q, next_review: str = PAST):
@@ -50,15 +50,23 @@ class TestSelectSession:
 
     def test_review_slots_fill_remaining_budget(self):
         new_qs = [make_question(id=f"n{i}", created_date=PAST) for i in range(2)]
-        due_qs = [_answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(8)]
-        result = select_session(new_qs + due_qs, today=TODAY, max_n=10, new_per_session=3)
+        due_qs = [
+            _answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(8)
+        ]
+        result = select_session(
+            new_qs + due_qs, today=TODAY, max_n=10, new_per_session=3
+        )
         assert len(result) == 10
 
     def test_shortfall_not_backfilled(self):
         # shortfall in new slots is NOT backfilled with extra reviews
         new_qs = [make_question(id="n1", created_date=PAST)]
-        due_qs = [_answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(9)]
-        result = select_session(new_qs + due_qs, today=TODAY, max_n=10, new_per_session=3)
+        due_qs = [
+            _answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(9)
+        ]
+        result = select_session(
+            new_qs + due_qs, today=TODAY, max_n=10, new_per_session=3
+        )
         assert len(result) == 10
 
     def test_new_questions_ordered_oldest_first(self):
@@ -68,7 +76,9 @@ class TestSelectSession:
         assert result[0].id == "old"
 
     def test_due_questions_ordered_most_overdue_first(self):
-        q_less_overdue = _answered(make_question(id="q_recent"), next_review="2026-04-19")
+        q_less_overdue = _answered(
+            make_question(id="q_recent"), next_review="2026-04-19"
+        )
         q_more_overdue = _answered(make_question(id="q_old"), next_review="2026-01-01")
         result = select_session(
             [q_less_overdue, q_more_overdue], today=TODAY, max_n=1, new_per_session=0
@@ -85,11 +95,17 @@ class TestSelectSession:
 
     def test_max_n_respected_with_mixed_bucket(self):
         new_qs = [make_question(id=f"n{i}", created_date=PAST) for i in range(5)]
-        due_qs = [_answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(5)]
-        result = select_session(new_qs + due_qs, today=TODAY, max_n=6, new_per_session=3)
+        due_qs = [
+            _answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(5)
+        ]
+        result = select_session(
+            new_qs + due_qs, today=TODAY, max_n=6, new_per_session=3
+        )
         assert len(result) == 6
 
     def test_all_due_no_new(self):
-        due_qs = [_answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(5)]
+        due_qs = [
+            _answered(make_question(id=f"d{i}", next_review=PAST)) for i in range(5)
+        ]
         result = select_session(due_qs, today=TODAY, max_n=10, new_per_session=3)
         assert len(result) == 5

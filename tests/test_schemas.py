@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from core.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, Reference
+from core.schemas.schemas import (
+    AnswerLogEntry,
+    HistoryEntry,
+    Question,
+    QuestionType,
+    Reference,
+)
 from tests.conftest import make_log_entry, make_question, make_ref
 
 
@@ -30,7 +36,11 @@ class TestQuestionType:
 
     def test_roundtrip_all_types(self):
         for qtype in QuestionType:
-            opts = ["A", "B", "C", "D"] if qtype is QuestionType.MULTIPLE_CHOICE else ["A", "B"]
+            opts = (
+                ["A", "B", "C", "D"]
+                if qtype is QuestionType.MULTIPLE_CHOICE
+                else ["A", "B"]
+            )
             q = make_question(qtype=qtype, options=opts)
             restored = Question.model_validate(q.model_dump())
             assert restored.type is qtype
@@ -51,7 +61,9 @@ class TestQuestionModel:
     def test_immutability_of_history_list(self):
         q = make_question()
         original_history = q.history
-        q2 = q.model_copy(update={"history": [HistoryEntry(date="2026-01-01", correct=True)]})
+        q2 = q.model_copy(
+            update={"history": [HistoryEntry(date="2026-01-01", correct=True)]}
+        )
         assert q.history is original_history
         assert len(q2.history) == 1
 
@@ -88,6 +100,8 @@ class TestAnswerLogEntry:
         assert entry.doc_id == ""
 
     def test_json_roundtrip(self):
-        entry = make_log_entry(qid="q1", doc_id="R1", level=2, correct=True, date="2026-04-01")
+        entry = make_log_entry(
+            qid="q1", doc_id="R1", level=2, correct=True, date="2026-04-01"
+        )
         restored = AnswerLogEntry.model_validate_json(entry.model_dump_json())
         assert restored == entry

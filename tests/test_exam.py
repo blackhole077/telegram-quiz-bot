@@ -10,13 +10,20 @@ import pytest
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")
 os.environ.setdefault("ALLOWED_USER_ID", "99999")
 
-from core.exam import _REMEDIAL_TEMPLATE, _REMEDIAL_TEMPLATE_SRC, _build_content, _escape, render_exam_pdf
-from core.llm_schemas import ExamProblem
+from core.exam import (
+    _REMEDIAL_TEMPLATE,
+    _REMEDIAL_TEMPLATE_SRC,
+    _build_content,
+    _escape,
+    render_exam_pdf,
+)
+from core.schemas.llm_schemas import ExamProblem
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _problems(n: int = 2) -> list[ExamProblem]:
     return [
@@ -44,6 +51,7 @@ def _latex_problems() -> list[ExamProblem]:
 # ---------------------------------------------------------------------------
 # _escape
 # ---------------------------------------------------------------------------
+
 
 class TestEscape:
     def test_plain_text_unchanged(self):
@@ -78,6 +86,7 @@ class TestEscape:
 # _build_content
 # ---------------------------------------------------------------------------
 
+
 class TestBuildContent:
     def test_returns_string(self):
         assert isinstance(_build_content(_problems()), str)
@@ -104,7 +113,9 @@ class TestBuildContent:
         assert "Eigenvalues" in _build_content(p)
 
     def test_prompt_and_solution_in_output(self):
-        p = [ExamProblem(number=1, topic="T", prompt="my prompt", solution="my solution")]
+        p = [
+            ExamProblem(number=1, topic="T", prompt="my prompt", solution="my solution")
+        ]
         result = _build_content(p)
         assert "my prompt" in result
         assert "my solution" in result
@@ -125,7 +136,9 @@ class TestBuildContent:
         assert r"\solution{" not in result
 
     def test_non_remedial_uses_standard_commands(self):
-        p = ExamProblem(number=1, topic="T", prompt="p", solution="s", is_remedial=False)
+        p = ExamProblem(
+            number=1, topic="T", prompt="p", solution="s", is_remedial=False
+        )
         result = _build_content([p])
         assert r"\problem{" in result
         assert r"\solution{" in result
@@ -134,8 +147,12 @@ class TestBuildContent:
 
     def test_mixed_uses_both_command_sets(self):
         problems = [
-            ExamProblem(number=1, topic="T1", prompt="p1", solution="s1", is_remedial=True),
-            ExamProblem(number=2, topic="T2", prompt="p2", solution="s2", is_remedial=False),
+            ExamProblem(
+                number=1, topic="T1", prompt="p1", solution="s1", is_remedial=True
+            ),
+            ExamProblem(
+                number=2, topic="T2", prompt="p2", solution="s2", is_remedial=False
+            ),
         ]
         result = _build_content(problems)
         assert r"\rproblem{" in result
@@ -145,6 +162,7 @@ class TestBuildContent:
 # ---------------------------------------------------------------------------
 # render_exam_pdf
 # ---------------------------------------------------------------------------
+
 
 class TestRenderExamPdf:
     def test_returns_valid_pdf(self):
@@ -165,7 +183,11 @@ class TestRenderExamPdf:
         assert result[:4] == b"%PDF"
 
     def test_all_remedial_problems_produces_valid_pdf(self):
-        problems = [ExamProblem(number=1, topic="DQN", prompt="p", solution="s", is_remedial=True)]
+        problems = [
+            ExamProblem(
+                number=1, topic="DQN", prompt="p", solution="s", is_remedial=True
+            )
+        ]
         result = render_exam_pdf(problems, "DQN", "2026-04-28")
         assert result[:4] == b"%PDF"
 

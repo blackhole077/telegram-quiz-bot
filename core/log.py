@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from core.constants import ANSWERS_FILE
-from core.schemas import AnswerLogEntry
+from core.schemas.schemas import AnswerLogEntry
 
 
 def append(entry: AnswerLogEntry, path: str | Path = ANSWERS_FILE) -> None:

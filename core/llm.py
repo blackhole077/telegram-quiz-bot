@@ -25,12 +25,13 @@ from pydantic import ValidationError
 
 try:
     import pillow_heif
+
     pillow_heif.register_heif_opener()
 except ImportError:
     pass
 
 from core.config import settings
-from core.llm_schemas import (
+from core.schemas.llm_schemas import (
     ExamGradeResult,
     ExamProblem,
     GradeResult,
@@ -46,6 +47,7 @@ _DATA_DIR = Path(__file__).parent / "data"
 # ---------------------------------------------------------------------------
 # Template and schema loading (file I/O at import time only)
 # ---------------------------------------------------------------------------
+
 
 def _load_prompt(path: str) -> str:
     return (_DATA_DIR / "prompts" / path).read_text()
@@ -84,6 +86,7 @@ _SCH_TEACH_IT_BACK = _load_schema("teach_it_back_result")
 # Image normalization
 # ---------------------------------------------------------------------------
 
+
 def normalize_image(image_bytes: bytes) -> tuple[bytes, str]:
     """Convert any supported image format (including HEIC/HEIF) to JPEG.
 
@@ -103,6 +106,7 @@ def normalize_image(image_bytes: bytes) -> tuple[bytes, str]:
 # ---------------------------------------------------------------------------
 # Backend
 # ---------------------------------------------------------------------------
+
 
 class OpenAIBackend:
     """OpenAI-compatible backend - works unchanged with Ollama, DeepSeek, etc."""
@@ -146,7 +150,10 @@ class OpenAIBackend:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": user},
-                        {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{b64}"},
+                        },
                     ],
                 },
             ],
@@ -174,8 +181,11 @@ def override_backend(backend: LLMBackend):  # type: ignore[return]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _material_block(topic_material: str) -> str:
-    return f"\n\nRelevant background material:\n{topic_material}" if topic_material else ""
+    return (
+        f"\n\nRelevant background material:\n{topic_material}" if topic_material else ""
+    )
 
 
 def _problems_block(exam_problems: list[ExamProblem]) -> str:
@@ -189,6 +199,7 @@ def _problems_block(exam_problems: list[ExamProblem]) -> str:
 # Public functions
 # ---------------------------------------------------------------------------
 
+
 def grade_answer(
     problem_prompt: str,
     solution_steps: str,
@@ -196,13 +207,26 @@ def grade_answer(
     topic_material: str = "",
 ) -> GradeResult:
     """Grade a single free-text practice answer."""
-    system = _render(_SYS_GRADER, schema=_SCH_GRADE, topic_material=_material_block(topic_material))
-    user = _render(_USR_GRADER, problem_prompt=problem_prompt, solution_steps=solution_steps, user_answer=user_answer)
+    system = _render(
+        _SYS_GRADER, schema=_SCH_GRADE, topic_material=_material_block(topic_material)
+    )
+    user = _render(
+        _USR_GRADER,
+        problem_prompt=problem_prompt,
+        solution_steps=solution_steps,
+        user_answer=user_answer,
+    )
     try:
         return GradeResult.model_validate(json.loads(_backend.chat(system, user)))
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_answer failed: %s", exc)
-        return GradeResult(correct=False, score=0.0, feedback="Grading failed - please try again.", model_solution="", error=str(exc))
+        return GradeResult(
+            correct=False,
+            score=0.0,
+            feedback="Grading failed - please try again.",
+            model_solution="",
+            error=str(exc),
+        )
 
 
 def generate_exam(
@@ -212,15 +236,28 @@ def generate_exam(
     topic_material: str = "",
 ) -> list[ExamProblem]:
     """Generate exam problems for a category, weighted toward weak topics."""
-    system = _render(_SYS_EXAMINER, schema=_SCH_EXAM_PROBLEMS, topic_material=_material_block(topic_material))
+    system = _render(
+        _SYS_EXAMINER,
+        schema=_SCH_EXAM_PROBLEMS,
+        topic_material=_material_block(topic_material),
+    )
     weak_section = ""
     if weak_topics:
         topics_list = "\n".join(f"- {t}" for t in weak_topics)
         weak_section = "\n" + _render(_USR_EXAMINER_WEAK, weak_topics_list=topics_list)
-    user = _render(_USR_EXAMINER, category=category, n_questions=str(n_questions), weak_section=weak_section)
+    user = _render(
+        _USR_EXAMINER,
+        category=category,
+        n_questions=str(n_questions),
+        weak_section=weak_section,
+    )
     try:
         parsed = json.loads(_backend.chat(system, user))
-        items: list[dict] = parsed if isinstance(parsed, list) else parsed.get("problems", parsed.get("questions", []))
+        items: list[dict] = (
+            parsed
+            if isinstance(parsed, list)
+            else parsed.get("problems", parsed.get("questions", []))
+        )
         return [ExamProblem.model_validate(item) for item in items]
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("generate_exam failed: %s", exc)
@@ -228,7 +265,11 @@ def generate_exam(
 
 
 def _exam_grader_system(topic_material: str) -> str:
-    return _render(_SYS_EXAM_GRADER, schema=_SCH_EXAM_GRADE, topic_material=_material_block(topic_material))
+    return _render(
+        _SYS_EXAM_GRADER,
+        schema=_SCH_EXAM_GRADE,
+        topic_material=_material_block(topic_material),
+    )
 
 
 def grade_from_text(
@@ -238,12 +279,18 @@ def grade_from_text(
 ) -> ExamGradeResult:
     """Grade a digitally-submitted exam given extracted answer text."""
     system = _exam_grader_system(topic_material)
-    user = _render(_USR_EXAM_TEXT, problems_block=_problems_block(exam_problems), answer_text=answer_text)
+    user = _render(
+        _USR_EXAM_TEXT,
+        problems_block=_problems_block(exam_problems),
+        answer_text=answer_text,
+    )
     try:
         return ExamGradeResult.model_validate(json.loads(_backend.chat(system, user)))
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_from_text failed: %s", exc)
-        return ExamGradeResult(error=str(exc), summary="Grading failed - please try again.")
+        return ExamGradeResult(
+            error=str(exc), summary="Grading failed - please try again."
+        )
 
 
 def grade_from_image(
@@ -257,11 +304,20 @@ def grade_from_image(
     try:
         normalized_bytes, media_type = normalize_image(image_bytes)
         return ExamGradeResult.model_validate(
-            json.loads(_backend.chat_with_image(system, user, normalized_bytes, media_type))
+            json.loads(
+                _backend.chat_with_image(system, user, normalized_bytes, media_type)
+            )
         )
-    except (openai.OpenAIError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+    except (
+        openai.OpenAIError,
+        json.JSONDecodeError,
+        ValidationError,
+        ValueError,
+    ) as exc:
         logger.error("grade_from_image failed: %s", exc)
-        return ExamGradeResult(error=str(exc), summary="Grading failed - please try again.")
+        return ExamGradeResult(
+            error=str(exc), summary="Grading failed - please try again."
+        )
 
 
 def grade_teach_it_back(
@@ -271,10 +327,21 @@ def grade_teach_it_back(
     topic_material: str = "",
 ) -> TeachItBackResult:
     """Grade a teach-it-back exercise: how well did the user explain concept to audience."""
-    system = _render(_SYS_TEACH_IT_BACK, schema=_SCH_TEACH_IT_BACK, topic_material=_material_block(topic_material))
-    user = _render(_USR_TEACH_IT_BACK, concept=concept, audience=audience, user_explanation=user_explanation)
+    system = _render(
+        _SYS_TEACH_IT_BACK,
+        schema=_SCH_TEACH_IT_BACK,
+        topic_material=_material_block(topic_material),
+    )
+    user = _render(
+        _USR_TEACH_IT_BACK,
+        concept=concept,
+        audience=audience,
+        user_explanation=user_explanation,
+    )
     try:
         return TeachItBackResult.model_validate(json.loads(_backend.chat(system, user)))
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_teach_it_back failed: %s", exc)
-        return TeachItBackResult(score=0.0, feedback="Grading failed - please try again.", error=str(exc))
+        return TeachItBackResult(
+            score=0.0, feedback="Grading failed - please try again.", error=str(exc)
+        )

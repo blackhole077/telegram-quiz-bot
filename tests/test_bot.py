@@ -27,12 +27,23 @@ from bot.bot import (
     handle_exam_submission,
     handle_practice_answer,
 )
-from core.llm_schemas import ExamGradeResult, ExamProblem, GradeResult, ProblemGrade
+from core.schemas.llm_schemas import (
+    ExamGradeResult,
+    ExamProblem,
+    GradeResult,
+    ProblemGrade,
+)
 from core.problems import Problem
 from core.service import QuizService, AnswerOutcome
-from core.schemas import QuizSession
+from core.schemas.schemas import QuizSession
 from telegram.ext import ConversationHandler
-from tests.conftest import ALLOWED_USER_ID, make_question, make_session, make_update, make_context
+from tests.conftest import (
+    ALLOWED_USER_ID,
+    make_question,
+    make_session,
+    make_update,
+    make_context,
+)
 
 
 def make_problem(
@@ -237,11 +248,13 @@ class TestHandleAnswer:
     async def test_correct_answer_increments_score_via_service(self):
         q, context = self._setup()
         session: QuizSession = context.user_data["session"]
+
         # Simulate service mutating the session (as the real service does)
         def advance_cursor(s, text, today):
             s.score += 1
             s.cursor += 1
             return AnswerOutcome(correct=True, graded_question=q)
+
         self.mock_service.process_answer.side_effect = advance_cursor
         update = make_update(text="A")
         await handle_answer(update, context)
@@ -250,9 +263,11 @@ class TestHandleAnswer:
     @pytest.mark.asyncio
     async def test_correct_outcome_shows_feedback(self):
         q, context = self._setup()
+
         def advance_cursor(s, text, today):
             s.cursor = s.total  # mark complete
             return AnswerOutcome(correct=True, graded_question=q)
+
         self.mock_service.process_answer.side_effect = advance_cursor
         update = make_update(text="A")
         await handle_answer(update, context)
@@ -266,9 +281,11 @@ class TestHandleAnswer:
         q2 = make_question(id="q2", correct="A")
         session = make_session([q1, q2])
         context = make_context({"session": session})
+
         def advance_cursor(s, text, today):
             s.cursor += 1
             return AnswerOutcome(correct=True, graded_question=q1)
+
         self.mock_service.process_answer.side_effect = advance_cursor
         update = make_update(text="A")
         result = await handle_answer(update, context)
@@ -277,9 +294,11 @@ class TestHandleAnswer:
     @pytest.mark.asyncio
     async def test_last_question_calls_end_session_and_ends(self):
         q, context = self._setup()
+
         def complete_session(s, text, today):
             s.cursor = s.total
             return AnswerOutcome(correct=True, graded_question=q)
+
         self.mock_service.process_answer.side_effect = complete_session
         update = make_update(text="A")
         result = await handle_answer(update, context)
@@ -290,10 +309,12 @@ class TestHandleAnswer:
     async def test_last_question_sends_summary(self):
         q, context = self._setup()
         session: QuizSession = context.user_data["session"]
+
         def complete_session(s, text, today):
             s.score += 1
             s.cursor = s.total
             return AnswerOutcome(correct=True, graded_question=q)
+
         self.mock_service.process_answer.side_effect = complete_session
         update = make_update(text="A")
         await handle_answer(update, context)
@@ -307,9 +328,11 @@ class TestHandleAnswer:
         q2 = make_question(id="q2", correct="B")
         session = make_session([q1, q2])
         context = make_context({"session": session})
+
         def advance_cursor(s, text, today):
             s.cursor += 1
             return AnswerOutcome(correct=True, graded_question=q1)
+
         self.mock_service.process_answer.side_effect = advance_cursor
         update = make_update(text="A")
         await handle_answer(update, context)
@@ -506,10 +529,14 @@ class TestHandlePracticeAnswer:
     async def test_calls_grade_answer(self):
         problem = make_problem()
         context = make_context({"practice_problem": problem})
-        with patch("bot.bot.grade_answer", return_value=self._grade_result()) as mock_grade:
+        with patch(
+            "bot.bot.grade_answer", return_value=self._grade_result()
+        ) as mock_grade:
             update = make_update(text="my answer")
             await handle_practice_answer(update, context)
-        mock_grade.assert_called_once_with(problem.prompt, problem.solution_steps, "my answer")
+        mock_grade.assert_called_once_with(
+            problem.prompt, problem.solution_steps, "my answer"
+        )
 
     @pytest.mark.asyncio
     async def test_returns_end(self):
@@ -524,7 +551,9 @@ class TestHandlePracticeAnswer:
     async def test_correct_result_shown(self):
         problem = make_problem()
         context = make_context({"practice_problem": problem})
-        with patch("bot.bot.grade_answer", return_value=self._grade_result(correct=True)):
+        with patch(
+            "bot.bot.grade_answer", return_value=self._grade_result(correct=True)
+        ):
             update = make_update(text="answer")
             await handle_practice_answer(update, context)
         full_text = " ".join(c[0][0] for c in update.message.reply_text.call_args_list)
@@ -534,7 +563,10 @@ class TestHandlePracticeAnswer:
     async def test_wrong_result_includes_model_solution(self):
         problem = make_problem()
         context = make_context({"practice_problem": problem})
-        with patch("bot.bot.grade_answer", return_value=self._grade_result(correct=False, score=0.0)):
+        with patch(
+            "bot.bot.grade_answer",
+            return_value=self._grade_result(correct=False, score=0.0),
+        ):
             update = make_update(text="wrong")
             await handle_practice_answer(update, context)
         full_text = " ".join(c[0][0] for c in update.message.reply_text.call_args_list)
@@ -669,7 +701,9 @@ class TestHandleExamSubmission:
     @pytest.mark.asyncio
     async def test_text_submission_calls_grade_from_text(self):
         context = make_context({"exam_problems": self._problems()})
-        with patch("bot.bot.grade_from_text", return_value=self._grade_result()) as mock_grade:
+        with patch(
+            "bot.bot.grade_from_text", return_value=self._grade_result()
+        ) as mock_grade:
             update = make_update(text="My answers here.")
             update.message.photo = []
             await handle_exam_submission(update, context)
@@ -687,7 +721,9 @@ class TestHandleExamSubmission:
         update.message.photo = [mock_photo]
         update.message.text = None
 
-        with patch("bot.bot.grade_from_image", return_value=self._grade_result()) as mock_grade:
+        with patch(
+            "bot.bot.grade_from_image", return_value=self._grade_result()
+        ) as mock_grade:
             await handle_exam_submission(update, context)
         mock_grade.assert_called_once()
         assert mock_grade.call_args[0][1] == b"imgdata"
@@ -695,7 +731,9 @@ class TestHandleExamSubmission:
     @pytest.mark.asyncio
     async def test_score_shown_in_reply(self):
         context = make_context({"exam_problems": self._problems()})
-        with patch("bot.bot.grade_from_text", return_value=self._grade_result(score=0.75)):
+        with patch(
+            "bot.bot.grade_from_text", return_value=self._grade_result(score=0.75)
+        ):
             update = make_update(text="answers")
             update.message.photo = []
             await handle_exam_submission(update, context)

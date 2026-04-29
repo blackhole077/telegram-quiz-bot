@@ -19,18 +19,23 @@ class TestAdvance:
         q2 = advance(q, today=TODAY)
         assert q2.level == 2
 
-    @pytest.mark.parametrize("start_level,expected_next_level", [
-        (1, 2),
-        (2, 3),
-        (3, 4),
-        (4, 4),  # cap
-    ])
+    @pytest.mark.parametrize(
+        "start_level,expected_next_level",
+        [
+            (1, 2),
+            (2, 3),
+            (3, 4),
+            (4, 4),  # cap
+        ],
+    )
     def test_advance_level_and_schedule(self, start_level, expected_next_level):
         q = make_question(level=start_level)
         q2 = advance(q, today=TODAY)
         assert q2.level == expected_next_level
         expected_days = SRS_INTERVALS[expected_next_level]
-        expected_date = (date.fromisoformat(TODAY) + timedelta(days=expected_days)).isoformat()
+        expected_date = (
+            date.fromisoformat(TODAY) + timedelta(days=expected_days)
+        ).isoformat()
         assert q2.next_review == expected_date
 
     def test_history_entry_appended_correct(self):
@@ -41,7 +46,8 @@ class TestAdvance:
         assert q2.history[-1].correct is True
 
     def test_history_grows_cumulatively(self):
-        from core.schemas import HistoryEntry
+        from core.schemas.schemas import HistoryEntry
+
         existing = [HistoryEntry(date="2026-01-01", correct=True)]
         q = make_question(history=existing)
         q2 = advance(q, today=TODAY)

@@ -6,7 +6,13 @@ import sqlite3
 from pathlib import Path
 
 from core import log, pool
-from core.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, Reference
+from core.schemas.schemas import (
+    AnswerLogEntry,
+    HistoryEntry,
+    Question,
+    QuestionType,
+    Reference,
+)
 from core.storage import StorageBackend
 
 # ---------------------------------------------------------------------------
@@ -22,9 +28,11 @@ def register_backend(name: str):
     Used as a class decorator.  Registering the same name twice silently
     overwrites the earlier entry.
     """
+
     def decorator(cls):
         _REGISTRY[name] = cls
         return cls
+
     return decorator
 
 
@@ -49,6 +57,7 @@ def make_backend(settings) -> StorageBackend:
 # ---------------------------------------------------------------------------
 # Filesystem backend
 # ---------------------------------------------------------------------------
+
 
 @register_backend("filesystem")
 class FilesystemBackend:
@@ -166,7 +175,13 @@ class SQLiteBackend:
                 ).fetchall()
             ]
             references = [
-                Reference(doc_id=doc_id, title=title, authors=authors, year=year, section=section)
+                Reference(
+                    doc_id=doc_id,
+                    title=title,
+                    authors=authors,
+                    year=year,
+                    section=section,
+                )
                 for (doc_id, title, authors, year, section) in cur.execute(
                     "SELECT doc_id, title, authors, year, section "
                     "FROM question_references WHERE question_id = ? ORDER BY position",
@@ -183,11 +198,19 @@ class SQLiteBackend:
             ]
             questions.append(
                 Question(
-                    id=row[0], topic=row[1], type=QuestionType(row[2]),
-                    question=row[3], correct=row[4], explanation=row[5],
-                    created_date=row[6], session_date=row[7],
-                    level=row[8], next_review=row[9],
-                    options=options, references=references, history=history,
+                    id=row[0],
+                    topic=row[1],
+                    type=QuestionType(row[2]),
+                    question=row[3],
+                    correct=row[4],
+                    explanation=row[5],
+                    created_date=row[6],
+                    session_date=row[7],
+                    level=row[8],
+                    next_review=row[9],
+                    options=options,
+                    references=references,
+                    history=history,
                 )
             )
         return questions
@@ -202,8 +225,18 @@ class SQLiteBackend:
             for q in questions:
                 self._conn.execute(
                     "INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (q.id, q.topic, q.type.value, q.question, q.correct,
-                     q.explanation, q.created_date, q.session_date, q.level, q.next_review),
+                    (
+                        q.id,
+                        q.topic,
+                        q.type.value,
+                        q.question,
+                        q.correct,
+                        q.explanation,
+                        q.created_date,
+                        q.session_date,
+                        q.level,
+                        q.next_review,
+                    ),
                 )
                 for i, text in enumerate(q.options):
                     self._conn.execute(
@@ -212,7 +245,15 @@ class SQLiteBackend:
                 for i, ref in enumerate(q.references):
                     self._conn.execute(
                         "INSERT INTO question_references VALUES (?,?,?,?,?,?,?)",
-                        (q.id, i, ref.doc_id, ref.title, ref.authors, ref.year, ref.section),
+                        (
+                            q.id,
+                            i,
+                            ref.doc_id,
+                            ref.title,
+                            ref.authors,
+                            ref.year,
+                            ref.section,
+                        ),
                     )
                 for i, h in enumerate(q.history):
                     self._conn.execute(
@@ -224,7 +265,14 @@ class SQLiteBackend:
         with self._conn:
             self._conn.execute(
                 "INSERT INTO answers (qid, topic, doc_id, level, correct, date) VALUES (?,?,?,?,?,?)",
-                (entry.qid, entry.topic, entry.doc_id, entry.level, int(entry.correct), entry.date),
+                (
+                    entry.qid,
+                    entry.topic,
+                    entry.doc_id,
+                    entry.level,
+                    int(entry.correct),
+                    entry.date,
+                ),
             )
 
     def load_answers(self) -> list[AnswerLogEntry]:
@@ -232,7 +280,13 @@ class SQLiteBackend:
             "SELECT qid, topic, doc_id, level, correct, date FROM answers ORDER BY rowid"
         ).fetchall()
         return [
-            AnswerLogEntry(qid=qid, topic=topic, doc_id=doc_id, level=level,
-                           correct=bool(correct), date=date)
+            AnswerLogEntry(
+                qid=qid,
+                topic=topic,
+                doc_id=doc_id,
+                level=level,
+                correct=bool(correct),
+                date=date,
+            )
             for (qid, topic, doc_id, level, correct, date) in rows
         ]

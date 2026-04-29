@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from core import pool as poolmod
-from core.schemas import QuestionType
+from core.schemas.schemas import QuestionType
 from tests.conftest import make_question
 
 
@@ -26,7 +26,8 @@ class TestLoad:
         assert loaded[0].id == "q1"
 
     def test_preserves_all_fields(self, tmp_path):
-        from core.schemas import HistoryEntry
+        from core.schemas.schemas import HistoryEntry
+
         entry = HistoryEntry(date="2026-01-01", correct=False)
         q = make_question(id="q99", level=3, history=[entry], correct="C")
         p = tmp_path / "pool.json"
@@ -40,7 +41,11 @@ class TestLoad:
 
     def test_preserves_question_type(self, tmp_path):
         for qtype in QuestionType:
-            opts = ["a", "b", "c", "d"] if qtype is QuestionType.MULTIPLE_CHOICE else ["a", "b"]
+            opts = (
+                ["a", "b", "c", "d"]
+                if qtype is QuestionType.MULTIPLE_CHOICE
+                else ["a", "b"]
+            )
             q = make_question(id="qt", qtype=qtype, options=opts)
             p = tmp_path / f"pool_{qtype.name}.json"
             poolmod.save([q], p)

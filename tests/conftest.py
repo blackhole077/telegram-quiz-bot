@@ -15,8 +15,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.schemas import AnswerLogEntry, HistoryEntry, Question, QuestionType, QuizSession, Reference
-from core.llm_schemas import LLMBackend
+from core.schemas.schemas import (
+    AnswerLogEntry,
+    HistoryEntry,
+    Question,
+    QuestionType,
+    QuizSession,
+    Reference,
+)
+from core.schemas.llm_schemas import LLMBackend
 
 ALLOWED_USER_ID = 99999
 
@@ -29,7 +36,11 @@ ALLOWED_USER_ID = 99999
 
 def make_ref(doc_id: str = "REF1") -> Reference:
     return Reference(
-        doc_id=doc_id, title="Test Paper", authors="Author A", year=2020, section="Ch. 1"
+        doc_id=doc_id,
+        title="Test Paper",
+        authors="Author A",
+        year=2020,
+        section="Ch. 1",
     )
 
 
@@ -70,7 +81,9 @@ def make_log_entry(
     date: str = "2026-04-01",
     doc_id: str = "REF1",
 ) -> AnswerLogEntry:
-    return AnswerLogEntry(qid=qid, topic=topic, doc_id=doc_id, level=level, correct=correct, date=date)
+    return AnswerLogEntry(
+        qid=qid, topic=topic, doc_id=doc_id, level=level, correct=correct, date=date
+    )
 
 
 def make_update(user_id: int = ALLOWED_USER_ID, text: str = "A") -> MagicMock:

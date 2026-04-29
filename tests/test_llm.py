@@ -19,7 +19,7 @@ import pytest
 from PIL import Image
 from unittest.mock import MagicMock, patch
 
-from core.llm_schemas import (
+from core.schemas.llm_schemas import (
     ExamGradeResult,
     ExamProblem,
     GradeResult,
@@ -41,6 +41,7 @@ from tests.conftest import ErrorBackend, MockBackend
 # ---------------------------------------------------------------------------
 # Image helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_jpeg() -> bytes:
     buf = io.BytesIO()
@@ -66,6 +67,7 @@ def _make_completion(content: str) -> MagicMock:
 # normalize_image
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeImage:
     def test_jpeg_passthrough(self):
         jpeg_bytes = _make_jpeg()
@@ -90,6 +92,7 @@ class TestNormalizeImage:
 # OpenAIBackend
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIBackend:
     def test_chat_with_image_encodes_base64_in_request(self):
         backend = OpenAIBackend()
@@ -98,7 +101,9 @@ class TestOpenAIBackend:
             backend.chat_with_image("sys", "user msg", b"raw-image-bytes")
         messages = mock_create.call_args.kwargs["messages"]
         user_msg = next(m for m in messages if m["role"] == "user")
-        image_block = next(b for b in user_msg["content"] if b.get("type") == "image_url")
+        image_block = next(
+            b for b in user_msg["content"] if b.get("type") == "image_url"
+        )
         url = image_block["image_url"]["url"]
         assert url.startswith("data:image/jpeg;base64,")
         assert base64.b64decode(url.split(",", 1)[1]) == b"raw-image-bytes"
@@ -108,9 +113,17 @@ class TestOpenAIBackend:
 # grade_answer
 # ---------------------------------------------------------------------------
 
+
 class TestGradeAnswer:
     def test_correct_answer(self):
-        payload = json.dumps({"correct": True, "score": 1.0, "feedback": "Great", "model_solution": "x=4"})
+        payload = json.dumps(
+            {
+                "correct": True,
+                "score": 1.0,
+                "feedback": "Great",
+                "model_solution": "x=4",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_answer("What is 2+2?", "2+2=4", "4")
@@ -122,7 +135,14 @@ class TestGradeAnswer:
         assert result.error == ""
 
     def test_wrong_answer(self):
-        payload = json.dumps({"correct": False, "score": 0.0, "feedback": "Wrong", "model_solution": "x=4"})
+        payload = json.dumps(
+            {
+                "correct": False,
+                "score": 0.0,
+                "feedback": "Wrong",
+                "model_solution": "x=4",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_answer("What is 2+2?", "2+2=4", "5")
@@ -130,30 +150,45 @@ class TestGradeAnswer:
         assert result.score == 0.0
 
     def test_partial_credit(self):
-        payload = json.dumps({"correct": False, "score": 0.5, "feedback": "Partially right", "model_solution": "..."})
+        payload = json.dumps(
+            {
+                "correct": False,
+                "score": 0.5,
+                "feedback": "Partially right",
+                "model_solution": "...",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_answer("Derive X", "steps...", "half answer")
         assert result.score == 0.5
 
     def test_system_prompt_contains_grader_role(self):
-        payload = json.dumps({"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"})
+        payload = json.dumps(
+            {"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"}
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             grade_answer("q", "sol", "ans")
         assert "grader" in mock.last_system.lower()
 
     def test_problem_and_answer_in_user_message(self):
-        payload = json.dumps({"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"})
+        payload = json.dumps(
+            {"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"}
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
-            grade_answer("What is entropy?", "H = -sum(p log p)", "it measures uncertainty")
+            grade_answer(
+                "What is entropy?", "H = -sum(p log p)", "it measures uncertainty"
+            )
         assert "What is entropy?" in mock.last_user
         assert "H = -sum(p log p)" in mock.last_user
         assert "it measures uncertainty" in mock.last_user
 
     def test_topic_material_injected_into_system_prompt(self):
-        payload = json.dumps({"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"})
+        payload = json.dumps(
+            {"correct": True, "score": 1.0, "feedback": "ok", "model_solution": "ok"}
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             grade_answer("q", "sol", "ans", topic_material="Shannon entropy context")
@@ -179,12 +214,15 @@ class TestGradeAnswer:
 # generate_exam
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateExam:
     def test_returns_exam_problems(self):
-        payload = json.dumps([
-            {"number": 1, "prompt": "Prove X", "solution": "Because Y"},
-            {"number": 2, "prompt": "Solve Z", "solution": "Z=3"},
-        ])
+        payload = json.dumps(
+            [
+                {"number": 1, "prompt": "Prove X", "solution": "Because Y"},
+                {"number": 2, "prompt": "Solve Z", "solution": "Z=3"},
+            ]
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             problems = generate_exam("Linear Algebra", 2, [])
@@ -216,7 +254,9 @@ class TestGenerateExam:
         assert "struggled" not in mock.last_user
 
     def test_wrapped_json_object_unwrapped(self):
-        payload = json.dumps({"problems": [{"number": 1, "prompt": "p", "solution": "s"}]})
+        payload = json.dumps(
+            {"problems": [{"number": 1, "prompt": "p", "solution": "s"}]}
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             problems = generate_exam("Math", 1, [])
@@ -232,16 +272,19 @@ class TestGenerateExam:
 # grade_from_text
 # ---------------------------------------------------------------------------
 
+
 class TestGradeFromText:
     def _problems(self) -> list[ExamProblem]:
         return [ExamProblem(number=1, prompt="What is 1+1?", solution="2")]
 
     def test_returns_exam_grade_result(self):
-        payload = json.dumps({
-            "problems": [{"number": 1, "score": 1.0, "feedback": "Correct"}],
-            "total_score": 1.0,
-            "summary": "Excellent",
-        })
+        payload = json.dumps(
+            {
+                "problems": [{"number": 1, "score": 1.0, "feedback": "Correct"}],
+                "total_score": 1.0,
+                "summary": "Excellent",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_from_text(self._problems(), "1. 2")
@@ -251,11 +294,13 @@ class TestGradeFromText:
         assert len(result.problems) == 1
 
     def test_answer_text_in_user_message(self):
-        payload = json.dumps({
-            "problems": [{"number": 1, "score": 1.0, "feedback": "ok"}],
-            "total_score": 1.0,
-            "summary": "Good",
-        })
+        payload = json.dumps(
+            {
+                "problems": [{"number": 1, "score": 1.0, "feedback": "ok"}],
+                "total_score": 1.0,
+                "summary": "Good",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             grade_from_text(self._problems(), "my answer here")
@@ -272,16 +317,19 @@ class TestGradeFromText:
 # grade_from_image
 # ---------------------------------------------------------------------------
 
+
 class TestGradeFromImage:
     def _problems(self) -> list[ExamProblem]:
         return [ExamProblem(number=1, prompt="What is 1+1?", solution="2")]
 
     def _ok_payload(self) -> str:
-        return json.dumps({
-            "problems": [{"number": 1, "score": 1.0, "feedback": "ok"}],
-            "total_score": 1.0,
-            "summary": "Good",
-        })
+        return json.dumps(
+            {
+                "problems": [{"number": 1, "score": 1.0, "feedback": "ok"}],
+                "total_score": 1.0,
+                "summary": "Good",
+            }
+        )
 
     def test_returns_grade_result_with_valid_jpeg(self):
         mock = MockBackend(self._ok_payload())
@@ -313,19 +361,26 @@ class TestGradeFromImage:
 # grade_teach_it_back
 # ---------------------------------------------------------------------------
 
+
 class TestGradeTeachItBack:
     def _good_payload(self) -> str:
-        return json.dumps({
-            "score": 0.9,
-            "feedback": "Clear and accurate explanation.",
-            "missing_concepts": [],
-            "analogy_issues": [],
-        })
+        return json.dumps(
+            {
+                "score": 0.9,
+                "feedback": "Clear and accurate explanation.",
+                "missing_concepts": [],
+                "analogy_issues": [],
+            }
+        )
 
     def test_returns_teach_it_back_result(self):
         mock = MockBackend(self._good_payload())
         with override_backend(mock):
-            result = grade_teach_it_back("gradient descent", "high school student", "It's like rolling a ball downhill.")
+            result = grade_teach_it_back(
+                "gradient descent",
+                "high school student",
+                "It's like rolling a ball downhill.",
+            )
         assert isinstance(result, TeachItBackResult)
         assert result.score == 0.9
         assert result.feedback == "Clear and accurate explanation."
@@ -334,34 +389,48 @@ class TestGradeTeachItBack:
         assert result.error == ""
 
     def test_missing_concepts_populated(self):
-        payload = json.dumps({
-            "score": 0.5,
-            "feedback": "Missed key ideas.",
-            "missing_concepts": ["learning rate", "convergence"],
-            "analogy_issues": [],
-        })
+        payload = json.dumps(
+            {
+                "score": 0.5,
+                "feedback": "Missed key ideas.",
+                "missing_concepts": ["learning rate", "convergence"],
+                "analogy_issues": [],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
-            result = grade_teach_it_back("gradient descent", "undergrad", "You subtract the gradient.")
+            result = grade_teach_it_back(
+                "gradient descent", "undergrad", "You subtract the gradient."
+            )
         assert result.missing_concepts == ["learning rate", "convergence"]
 
     def test_analogy_issues_populated(self):
-        payload = json.dumps({
-            "score": 0.6,
-            "feedback": "Analogy breaks down.",
-            "missing_concepts": [],
-            "analogy_issues": ["Rolling-ball analogy implies a unique minimum, which doesn't hold for non-convex losses."],
-        })
+        payload = json.dumps(
+            {
+                "score": 0.6,
+                "feedback": "Analogy breaks down.",
+                "missing_concepts": [],
+                "analogy_issues": [
+                    "Rolling-ball analogy implies a unique minimum, which doesn't hold for non-convex losses."
+                ],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
-            result = grade_teach_it_back("gradient descent", "ML engineer", "Like rolling a ball to the lowest point.")
+            result = grade_teach_it_back(
+                "gradient descent",
+                "ML engineer",
+                "Like rolling a ball to the lowest point.",
+            )
         assert len(result.analogy_issues) == 1
         assert "non-convex" in result.analogy_issues[0]
 
     def test_system_prompt_contains_educator_role(self):
         mock = MockBackend(self._good_payload())
         with override_backend(mock):
-            grade_teach_it_back("backpropagation", "high school student", "explanation text")
+            grade_teach_it_back(
+                "backpropagation", "high school student", "explanation text"
+            )
         assert "educator" in mock.last_system.lower()
 
     def test_concept_and_audience_in_user_message(self):
@@ -374,7 +443,12 @@ class TestGradeTeachItBack:
     def test_topic_material_injected_into_system_prompt(self):
         mock = MockBackend(self._good_payload())
         with override_backend(mock):
-            grade_teach_it_back("entropy", "undergrad", "explanation", topic_material="Shannon 1948 paper context")
+            grade_teach_it_back(
+                "entropy",
+                "undergrad",
+                "explanation",
+                topic_material="Shannon 1948 paper context",
+            )
         assert "Shannon 1948 paper context" in mock.last_system
 
     def test_json_parse_failure_returns_graceful_error(self):
@@ -398,13 +472,40 @@ class TestGradeTeachItBack:
 # ---------------------------------------------------------------------------
 
 _PROVIDER_CONFIGS = [
-    pytest.param("https://api.openai.com/v1",                              "sk-fake-openai",   "gpt-4o",                                 id="openai"),
-    pytest.param("https://api.anthropic.com/v1",                           "sk-ant-fake",      "claude-opus-4-7",                        id="anthropic"),
-    pytest.param("https://api.deepseek.com/v1",                            "sk-fake-deepseek", "deepseek-chat",                          id="deepseek"),
-    pytest.param("https://generativelanguage.googleapis.com/v1beta/openai/","fake-gemini-key",  "gemini-2.0-flash",                       id="gemini"),
-    pytest.param("https://openrouter.ai/api/v1",                           "sk-or-fake",       "meta-llama/llama-3.3-70b-instruct",      id="openrouter"),
-    pytest.param("https://api.groq.com/openai/v1",                         "gsk_fake",         "llama-3.3-70b-versatile",                id="groq"),
-    pytest.param("https://api.mistral.ai/v1",                              "fake-mistral-key", "mistral-large-latest",                   id="mistral"),
+    pytest.param("https://api.openai.com/v1", "sk-fake-openai", "gpt-4o", id="openai"),
+    pytest.param(
+        "https://api.anthropic.com/v1", "sk-ant-fake", "claude-opus-4-7", id="anthropic"
+    ),
+    pytest.param(
+        "https://api.deepseek.com/v1",
+        "sk-fake-deepseek",
+        "deepseek-chat",
+        id="deepseek",
+    ),
+    pytest.param(
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "fake-gemini-key",
+        "gemini-2.0-flash",
+        id="gemini",
+    ),
+    pytest.param(
+        "https://openrouter.ai/api/v1",
+        "sk-or-fake",
+        "meta-llama/llama-3.3-70b-instruct",
+        id="openrouter",
+    ),
+    pytest.param(
+        "https://api.groq.com/openai/v1",
+        "gsk_fake",
+        "llama-3.3-70b-versatile",
+        id="groq",
+    ),
+    pytest.param(
+        "https://api.mistral.ai/v1",
+        "fake-mistral-key",
+        "mistral-large-latest",
+        id="mistral",
+    ),
 ]
 
 
@@ -412,7 +513,9 @@ class TestOpenAIBackendConfiguration:
     @pytest.mark.parametrize("base_url,api_key,model", _PROVIDER_CONFIGS)
     def test_constructor_passes_base_url_and_api_key(self, base_url, api_key, model):
         with patch("core.llm.openai.OpenAI") as mock_cls:
-            mock_cls.return_value.chat.completions.create.return_value = _make_completion("{}")
+            mock_cls.return_value.chat.completions.create.return_value = (
+                _make_completion("{}")
+            )
             OpenAIBackend(base_url=base_url, api_key=api_key, model=model)
         mock_cls.assert_called_once_with(base_url=base_url, api_key=api_key)
 

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from core import log as logmod
-from core.schemas import AnswerLogEntry
+from core.schemas.schemas import AnswerLogEntry
 from tests.conftest import make_log_entry
 
 
@@ -57,7 +57,9 @@ class TestLoad:
 
     def test_loads_multiple_entries_in_order(self, tmp_path):
         p = tmp_path / "answers.jsonl"
-        entries = [make_log_entry(qid=f"q{i}", date=f"2026-04-{i+1:02d}") for i in range(5)]
+        entries = [
+            make_log_entry(qid=f"q{i}", date=f"2026-04-{i+1:02d}") for i in range(5)
+        ]
         for e in entries:
             logmod.append(e, p)
         loaded = logmod.load(p)
@@ -78,7 +80,14 @@ class TestLoad:
 
     def test_roundtrip_preserves_all_fields(self, tmp_path):
         p = tmp_path / "answers.jsonl"
-        entry = make_log_entry(qid="q42", topic="PPO", correct=False, level=3, date="2026-03-15", doc_id="DOC99")
+        entry = make_log_entry(
+            qid="q42",
+            topic="PPO",
+            correct=False,
+            level=3,
+            date="2026-03-15",
+            doc_id="DOC99",
+        )
         logmod.append(entry, p)
         loaded = logmod.load(p)
         e = loaded[0]

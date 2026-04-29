@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from core.constants import QUESTIONS_FILE
-from core.schemas import Question
+from core.schemas.schemas import Question
 
 
 def load(path: str | Path = QUESTIONS_FILE) -> list[Question]:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from core.schemas import AnswerLogEntry, Question
+from core.schemas.schemas import AnswerLogEntry, Question
 
 
 @runtime_checkable

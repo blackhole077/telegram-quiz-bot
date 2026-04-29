@@ -8,7 +8,12 @@ from datetime import date
 from core import srs
 from core.question import normalise_answer, shuffle_answers
 from core.refinement import RefinementReport, analyze_gaps
-from core.schemas import AnswerLogEntry, DifficultQuestion, Question, QuizSession
+from core.schemas.schemas import (
+    AnswerLogEntry,
+    DifficultQuestion,
+    Question,
+    QuizSession,
+)
 from core.selector import select_session
 from core.storage import StorageBackend
 
@@ -16,6 +21,7 @@ from core.storage import StorageBackend
 @dataclass
 class AnswerOutcome:
     """Result of processing one answer through the service."""
+
     correct: bool
     graded_question: Question
 
@@ -64,7 +70,9 @@ class QuizService:
 
         original = session.current_original
         correct = answer == question.correct.upper()
-        updated = srs.advance(original, today) if correct else srs.demote(original, today)
+        updated = (
+            srs.advance(original, today) if correct else srs.demote(original, today)
+        )
 
         session.original_map[updated.id] = updated
         if correct:

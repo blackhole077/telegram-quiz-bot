@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from core.refinement import RefinementReport, analyze_gaps
-from core.schemas import DifficultQuestion, HistoryEntry
+from core.schemas.schemas import DifficultQuestion, HistoryEntry
 from tests.conftest import make_log_entry, make_question, make_ref
 
 
@@ -98,7 +98,12 @@ class TestFlaggedTopics:
     def test_fifty_percent_exactly_not_flagged(self):
         q = make_question(id="q1", topic="DQN")
         # 2/4 = 50% — not strictly greater than 50%
-        entries = [_wrong("q1", "DQN"), _wrong("q1", "DQN"), _right("q1", "DQN"), _right("q1", "DQN")]
+        entries = [
+            _wrong("q1", "DQN"),
+            _wrong("q1", "DQN"),
+            _right("q1", "DQN"),
+            _right("q1", "DQN"),
+        ]
         report = analyze_gaps(entries, [q])
         assert "DQN" not in report.flagged_topics
 
@@ -106,10 +111,11 @@ class TestFlaggedTopics:
         q1 = make_question(id="q1", topic="DQN")
         q2 = make_question(id="q2", topic="PPO")
         # DQN: 2/3 wrong → flagged; PPO: 0/3 wrong → not flagged
-        entries = (
-            [_wrong("q1", "DQN"), _wrong("q1", "DQN"), _right("q1", "DQN")]
-            + [_right("q2", "PPO"), _right("q2", "PPO"), _right("q2", "PPO")]
-        )
+        entries = [_wrong("q1", "DQN"), _wrong("q1", "DQN"), _right("q1", "DQN")] + [
+            _right("q2", "PPO"),
+            _right("q2", "PPO"),
+            _right("q2", "PPO"),
+        ]
         report = analyze_gaps(entries, [q1, q2])
         assert "DQN" in report.flagged_topics
         assert "PPO" not in report.flagged_topics
@@ -117,20 +123,29 @@ class TestFlaggedTopics:
 
 class TestRetireIds:
     def _make_history(self, *corrects: bool):
-        return [HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c) for i, c in enumerate(corrects)]
+        return [
+            HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c)
+            for i, c in enumerate(corrects)
+        ]
 
     def test_level_four_last_three_correct_retired(self):
-        q = make_question(id="q1", level=4, history=self._make_history(True, True, True))
+        q = make_question(
+            id="q1", level=4, history=self._make_history(True, True, True)
+        )
         report = analyze_gaps([_right("q1")], [q])
         assert "q1" in report.retire_ids
 
     def test_level_four_one_wrong_in_last_three_not_retired(self):
-        q = make_question(id="q1", level=4, history=self._make_history(True, False, True))
+        q = make_question(
+            id="q1", level=4, history=self._make_history(True, False, True)
+        )
         report = analyze_gaps([_right("q1")], [q])
         assert "q1" not in report.retire_ids
 
     def test_level_below_four_not_retired(self):
-        q = make_question(id="q1", level=3, history=self._make_history(True, True, True))
+        q = make_question(
+            id="q1", level=3, history=self._make_history(True, True, True)
+        )
         report = analyze_gaps([_right("q1")], [q])
         assert "q1" not in report.retire_ids
 
@@ -147,7 +162,9 @@ class TestRetireIds:
         assert "q1" in report.retire_ids
 
     def test_stateless_does_not_modify_inputs(self):
-        q = make_question(id="q1", level=4, history=self._make_history(True, True, True))
+        q = make_question(
+            id="q1", level=4, history=self._make_history(True, True, True)
+        )
         entries = [_right("q1")]
         original_len = len(entries)
         analyze_gaps(entries, [q])
@@ -156,7 +173,10 @@ class TestRetireIds:
 
 class TestDifficultQuestions:
     def _q(self, id: str, topic: str, *corrects: bool, refs: bool = True):
-        history = [HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c) for i, c in enumerate(corrects)]
+        history = [
+            HistoryEntry(date=f"2026-04-{i+1:02d}", correct=c)
+            for i, c in enumerate(corrects)
+        ]
         return make_question(
             id=id,
             topic=topic,

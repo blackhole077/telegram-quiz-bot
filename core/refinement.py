@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from core import log as logmod
 from core import pool as poolmod
-from core.schemas import AnswerLogEntry, DifficultQuestion, Question
+from core.schemas.schemas import AnswerLogEntry, DifficultQuestion, Question
 
 
 @dataclass

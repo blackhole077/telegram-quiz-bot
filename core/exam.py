@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from core.llm_schemas import ExamProblem
+from core.schemas.llm_schemas import ExamProblem
 
 _TEMPLATE = Path(__file__).parent / "data" / "exam_template.tex"
 _REMEDIAL_TEMPLATE = Path(__file__).parent / "data" / "remedial_exam_template.tex"
@@ -21,15 +21,15 @@ _PLACEHOLDER_DATE = "VAR_DATE"
 
 _ESCAPE_MAP = {
     "\\": r"\textbackslash{}",
-    "&":  r"\&",
-    "%":  r"\%",
-    "$":  r"\$",
-    "#":  r"\#",
-    "_":  r"\_",
-    "{":  r"\{",
-    "}":  r"\}",
-    "~":  r"\textasciitilde{}",
-    "^":  r"\textasciicircum{}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
 }
 
 
@@ -62,9 +62,7 @@ def _build_content(problems: list[ExamProblem]) -> str:
     return "\n".join(lines)
 
 
-def render_exam_pdf(
-    problems: list[ExamProblem], category: str, date: str
-) -> bytes:
+def render_exam_pdf(problems: list[ExamProblem], category: str, date: str) -> bytes:
     """Compile an exam to PDF bytes using tectonic.
 
     Writes a content.tex into a temp directory alongside the template,
