@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
-from core import log, pool
 from core.schemas.answer_schemas import AnswerLogEntry
 from core.schemas.question_schemas import (HistoryEntry, Question,
                                            QuestionType, Reference)
@@ -68,16 +68,34 @@ class FilesystemBackend:
         self._log_path = log_path
 
     def load_questions(self) -> list[Question]:
-        return pool.load(self._pool_path)
+        try:
+            data = json.loads(self._pool_path.read_text())
+            return [Question.model_validate(question) for question in data]
+        except FileNotFoundError:
+            return []
 
     def save_questions(self, questions: list[Question]) -> None:
-        pool.save(questions, self._pool_path)
+        self._pool_path.parent.mkdir(parents=True, exist_ok=True)
+        self._pool_path.write_text(
+            json.dumps(
+                [question.model_dump(mode="json") for question in questions], indent=2
+            )
+        )
 
     def append_answer(self, entry: AnswerLogEntry) -> None:
-        log.append(entry, self._log_path)
+        self._log_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._log_path.open("a") as log_file:
+            log_file.write(entry.model_dump_json() + "\n")
 
     def load_answers(self) -> list[AnswerLogEntry]:
-        return log.load(self._log_path)
+        try:
+            return [
+                AnswerLogEntry.model_validate(json.loads(line))
+                for line in self._log_path.read_text().splitlines()
+                if line.strip()
+            ]
+        except FileNotFoundError:
+            return []
 
 
 # ---------------------------------------------------------------------------
@@ -218,32 +236,33 @@ class SQLiteBackend:
             self._conn.execute("DELETE FROM question_options")
             self._conn.execute("DELETE FROM question_references")
             self._conn.execute("DELETE FROM questions")
-            for q in questions:
+            for question in questions:
                 self._conn.execute(
                     "INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (
-                        q.id,
-                        q.topic,
-                        q.type.value,
-                        q.question,
-                        q.correct,
-                        q.explanation,
-                        q.created_date,
-                        q.session_date,
-                        q.level,
-                        q.next_review,
+                        question.id,
+                        question.topic,
+                        question.type.value,
+                        question.question,
+                        question.correct,
+                        question.explanation,
+                        question.created_date,
+                        question.session_date,
+                        question.level,
+                        question.next_review,
                     ),
                 )
-                for i, text in enumerate(q.options):
+                for position, text in enumerate(question.options):
                     self._conn.execute(
-                        "INSERT INTO question_options VALUES (?,?,?)", (q.id, i, text)
+                        "INSERT INTO question_options VALUES (?,?,?)",
+                        (question.id, position, text),
                     )
-                for i, ref in enumerate(q.references):
+                for position, ref in enumerate(question.references):
                     self._conn.execute(
                         "INSERT INTO question_references VALUES (?,?,?,?,?,?,?)",
                         (
-                            q.id,
-                            i,
+                            question.id,
+                            position,
                             ref.doc_id,
                             ref.title,
                             ref.authors,
@@ -251,10 +270,10 @@ class SQLiteBackend:
                             ref.section,
                         ),
                     )
-                for i, h in enumerate(q.history):
+                for position, entry in enumerate(question.history):
                     self._conn.execute(
                         "INSERT INTO question_history VALUES (?,?,?,?)",
-                        (q.id, i, h.date, int(h.correct)),
+                        (question.id, position, entry.date, int(entry.correct)),
                     )
 
     def append_answer(self, entry: AnswerLogEntry) -> None:

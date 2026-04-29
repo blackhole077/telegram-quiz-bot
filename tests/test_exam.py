@@ -19,7 +19,7 @@ from core.schemas.llm_schemas import ExamProblem
 # ---------------------------------------------------------------------------
 
 
-def _problems(n: int = 2) -> list[ExamProblem]:
+def _problems(num_exam_problem: int = 2) -> list[ExamProblem]:
     return [
         ExamProblem(
             number=i + 1,
@@ -27,7 +27,7 @@ def _problems(n: int = 2) -> list[ExamProblem]:
             prompt=f"Problem {i + 1} prompt.",
             solution=f"Solution {i + 1}.",
         )
-        for i in range(n)
+        for i in range(num_exam_problem)
     ]
 
 
@@ -86,11 +86,11 @@ class TestBuildContent:
         assert isinstance(_build_content(_problems()), str)
 
     def test_problem_command_count(self):
-        result = _build_content(_problems(n=3))
+        result = _build_content(_problems(num_exam_problem=3))
         assert result.count(r"\problem{") == 3
 
     def test_solution_command_count(self):
-        result = _build_content(_problems(n=3))
+        result = _build_content(_problems(num_exam_problem=3))
         assert result.count(r"\solution{") == 3
 
     def test_contains_working_space(self):
@@ -165,7 +165,7 @@ class TestRenderExamPdf:
         assert result[:4] == b"%PDF"
 
     def test_multiple_problems(self):
-        result = render_exam_pdf(_problems(n=5), "Linear Algebra", "2026-04-28")
+        result = render_exam_pdf(_problems(num_exam_problem=5), "Linear Algebra", "2026-04-28")
         assert result[:4] == b"%PDF"
 
     def test_full_latex_including_pmatrix(self):

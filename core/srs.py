@@ -13,27 +13,27 @@ def _interval(level: int) -> int:
     return SRS_INTERVALS.get(level, 35)
 
 
-def advance(q: Question, today: str | None = None) -> Question:
+def advance(question: Question, today: str | None = None) -> Question:
     """Increment level (capped at 4), reschedule, and append a correct entry.
 
     ``next_review`` uses the interval for the *new* level, so level 1→2
     schedules 7 days out. Returns a new object; does not mutate *q*.
     """
     t = today or date.today().isoformat()
-    new_level = min(q.level + 1, 4)
+    new_level = min(question.level + 1, 4)
     next_review = (
         date.fromisoformat(t) + timedelta(days=_interval(new_level))
     ).isoformat()
-    return q.model_copy(
+    return question.model_copy(
         update={
             "level": new_level,
             "next_review": next_review,
-            "history": q.history + [HistoryEntry(date=t, correct=True)],
+            "history": question.history + [HistoryEntry(date=t, correct=True)],
         }
     )
 
 
-def demote(q: Question, today: str | None = None) -> Question:
+def demote(question: Question, today: str | None = None) -> Question:
     """Reset level to 1 and schedule for tomorrow; append an incorrect entry.
 
     Level resets hard to 1 (not decremented) because an incorrect answer
@@ -42,10 +42,10 @@ def demote(q: Question, today: str | None = None) -> Question:
     """
     t = today or date.today().isoformat()
     next_review = (date.fromisoformat(t) + timedelta(days=1)).isoformat()
-    return q.model_copy(
+    return question.model_copy(
         update={
             "level": 1,
             "next_review": next_review,
-            "history": q.history + [HistoryEntry(date=t, correct=False)],
+            "history": question.history + [HistoryEntry(date=t, correct=False)],
         }
     )

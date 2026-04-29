@@ -7,8 +7,6 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from core import log as logmod
-from core import pool as poolmod
 from core.schemas.answer_schemas import AnswerLogEntry
 from core.schemas.question_schemas import DifficultQuestion, Question
 
@@ -112,8 +110,11 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
 
-    answer_log = logmod.load(args.log)
-    questions = poolmod.load(args.pool)
+    from pathlib import Path
+    from backend.backends import FilesystemBackend
+    storage = FilesystemBackend(Path(args.pool), Path(args.log))
+    answer_log = storage.load_answers()
+    questions = storage.load_questions()
     report = analyze_gaps(answer_log, questions)
 
     if args.json:

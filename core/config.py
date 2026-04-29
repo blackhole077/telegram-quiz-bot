@@ -27,9 +27,6 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    # NOTE: We need to move the use of Telegram bot tokens and such into a separate config
-    telegram_bot_token: str
-    allowed_user_id: int
     data_dir: str = "/data"
     storage_type: str = "filesystem"
     db_path: str = "/data/quiz.db"

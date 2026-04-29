@@ -32,13 +32,13 @@ class QuizService:
 
     def start_session(self, due: list[Question]) -> QuizSession:
         """Build a shuffled session from the due questions."""
-        display = [shuffle_answers(q) for q in due]
+        display = [shuffle_answers(question) for question in due]
         return QuizSession(
-            session_ids=[q.id for q in due],
+            session_ids=[question.id for question in due],
             cursor=0,
             score=0,
-            original_map={q.id: q for q in due},
-            display_map={q.id: q for q in display},
+            original_map={question.id: question for question in due},
+            display_map={question.id: question for question in display},
         )
 
     def process_answer(

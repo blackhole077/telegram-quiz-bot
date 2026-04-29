@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from core.question import (fmt_feedback, fmt_question, input_hint, labels,
-                           normalise_answer, shuffle_answers)
+                           merge_questions, normalise_answer, shuffle_answers)
 from core.schemas.question_schemas import QuestionType
 from tests.conftest import make_question
 
@@ -189,3 +189,33 @@ class TestFmtFeedback:
     def test_no_ref_omits_footer(self):
         q = make_question(references=[])
         assert "📄" not in fmt_feedback(q, False)
+
+
+class TestMergeQuestions:
+    def test_adds_new_questions(self):
+        result = merge_questions([make_question(id="q1")], [make_question(id="q2")])
+        assert len(result) == 2
+
+    def test_skips_duplicate_ids(self):
+        existing = make_question(id="q1", level=1)
+        duplicate = make_question(id="q1", level=3)
+        result = merge_questions([existing], [duplicate])
+        assert len(result) == 1
+        assert result[0].level == 1
+
+    def test_empty_existing(self):
+        result = merge_questions([], [make_question(id="q1")])
+        assert len(result) == 1
+
+    def test_empty_new(self):
+        result = merge_questions([make_question(id="q1")], [])
+        assert len(result) == 1
+
+    def test_both_empty(self):
+        assert merge_questions([], []) == []
+
+    def test_partial_overlap(self):
+        existing = [make_question(id="q1"), make_question(id="q2")]
+        new = [make_question(id="q2"), make_question(id="q3")]
+        result = merge_questions(existing, new)
+        assert sorted(question.id for question in result) == ["q1", "q2", "q3"]

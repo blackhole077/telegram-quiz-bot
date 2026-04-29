@@ -16,7 +16,7 @@ from telegram.ext import (Application, CommandHandler, ContextTypes,
                           ConversationHandler, MessageHandler, filters)
 
 from backend import make_backend
-from core.config import settings
+from bot.config import bot_settings
 from core.exam import render_exam_pdf
 from core.llm import (generate_exam, grade_answer, grade_from_image,
                       grade_from_text)
@@ -36,13 +36,13 @@ _KEY_SESSION = "session"
 _KEY_PRACTICE_PROBLEM = "practice_problem"
 _KEY_EXAM_PROBLEMS = "exam_problems"
 
-_PROBLEMS_PATH = Path(settings.data_dir) / "problems.json"
+_PROBLEMS_PATH = Path(bot_settings.data_dir) / "problems.json"
 try:
     _PROBLEMS = load_problems(_PROBLEMS_PATH)
 except FileNotFoundError:
     _PROBLEMS = []
 
-_service: QuizService = QuizService(make_backend(settings))
+_service: QuizService = QuizService(make_backend(bot_settings))
 
 _Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]]
 
@@ -54,7 +54,7 @@ def _auth(func: _Handler) -> _Handler:
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
         if (
             update.effective_user
-            and update.effective_user.id != settings.allowed_user_id
+            and update.effective_user.id != bot_settings.allowed_user_id
         ):
             logger.warning(
                 "Ignoring message from unknown user %s", update.effective_user.id
@@ -292,7 +292,7 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    app = Application.builder().token(settings.telegram_bot_token).build()
+    app = Application.builder().token(bot_settings.telegram_bot_token).build()
 
     conv = ConversationHandler(
         entry_points=[

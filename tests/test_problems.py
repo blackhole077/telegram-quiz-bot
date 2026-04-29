@@ -116,15 +116,15 @@ class TestPickRandom:
         assert len(result) == 1
 
     def test_returns_n_items(self, problems):
-        result = pick_random(problems, n=2)
+        result = pick_random(problems, count=2)
         assert len(result) == 2
 
     def test_n_larger_than_pool_returns_whole_pool(self, problems):
-        result = pick_random(problems, n=100)
+        result = pick_random(problems, count=100)
         assert len(result) == len(problems)
 
     def test_result_is_subset_of_input(self, problems):
-        result = pick_random(problems, n=2)
+        result = pick_random(problems, count=2)
         ids = {p.id for p in result}
         assert ids <= {p.id for p in problems}
 

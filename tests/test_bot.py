@@ -62,7 +62,7 @@ class TestAuth:
             called.append(True)
             return "ok"
 
-        with patch.object(bot_module, "settings") as mock_settings:
+        with patch.object(bot_module, "bot_settings") as mock_settings:
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             wrapped = _auth(fake_handler)
             result = await wrapped(update, context)
@@ -79,7 +79,7 @@ class TestAuth:
         async def fake_handler(u, c):
             called.append(True)
 
-        with patch.object(bot_module, "settings") as mock_settings:
+        with patch.object(bot_module, "bot_settings") as mock_settings:
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             wrapped = _auth(fake_handler)
             result = await wrapped(update, context)
@@ -98,7 +98,7 @@ class TestAuth:
         async def fake_handler(u, c):
             called.append(True)
 
-        with patch.object(bot_module, "settings") as mock_settings:
+        with patch.object(bot_module, "bot_settings") as mock_settings:
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             wrapped = _auth(fake_handler)
             await wrapped(update, context)
@@ -113,7 +113,7 @@ class TestAuth:
         async def raising_handler(u, c):
             raise ValueError("boom")
 
-        with patch.object(bot_module, "settings") as mock_settings:
+        with patch.object(bot_module, "bot_settings") as mock_settings:
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             wrapped = _auth(raising_handler)
             result = await wrapped(update, context)
@@ -134,7 +134,7 @@ class TestGenerateAndStartQuiz:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -201,7 +201,7 @@ class TestHandleAnswer:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -335,7 +335,7 @@ class TestCmdStats:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -377,7 +377,7 @@ class TestCmdCancel:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -413,7 +413,7 @@ class TestCmdPractice:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -495,7 +495,7 @@ class TestHandlePracticeAnswer:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -580,7 +580,7 @@ class TestCmdExam:
         self.mock_service.get_gap_report.return_value = mock_report
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
@@ -667,7 +667,7 @@ class TestHandleExamSubmission:
         self.mock_service = MagicMock(spec=QuizService)
         with (
             patch.object(bot_module, "_service", self.mock_service),
-            patch.object(bot_module, "settings") as mock_settings,
+            patch.object(bot_module, "bot_settings") as mock_settings,
         ):
             mock_settings.allowed_user_id = ALLOWED_USER_ID
             yield
