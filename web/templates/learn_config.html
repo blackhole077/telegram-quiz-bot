@@ -59,8 +59,7 @@
         </nav>
         <main>
             <div id="learn-area">
-                <form hx-post="/learn/start" hx-target="#learn-area" hx-swap="innerHTML"
-                    hx-indicator="#learn-loading">
+                <form hx-post="/learn/start" hx-target="#learn-area" hx-swap="innerHTML" hx-indicator="#learn-loading">
                     <div class="config-form">
                         <div class="config-field">
                             <label for="exercise-type">Exercise</label>
@@ -74,11 +73,8 @@
 
                         <div class="config-field" id="field-concept-a">
                             <label id="field-concept-a-label" for="concept-a-select">Concept</label>
-                            <select id="concept-a-select" name="concept_a"
-                                hx-get="/learn/neighbors"
-                                hx-target="#concept-b-select"
-                                hx-swap="innerHTML"
-                                hx-trigger="change">
+                            <select id="concept-a-select" name="concept_a" hx-get="/learn/neighbors"
+                                hx-target="#concept-b-select" hx-swap="innerHTML" hx-trigger="change">
                                 {% for node_name in node_names %}
                                 <option value="{{ node_name }}">{{ node_name }}</option>
                                 {% endfor %}
@@ -100,8 +96,7 @@
 
                         <div class="config-field" id="field-audience">
                             <label for="audience">Audience</label>
-                            <input id="audience" type="text" name="audience"
-                                value="a fellow student">
+                            <input id="audience" type="text" name="audience" value="a fellow student">
                         </div>
 
                         <button type="submit" class="start-btn">Start Exercise</button>

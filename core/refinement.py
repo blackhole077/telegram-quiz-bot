@@ -111,6 +111,7 @@ def main() -> None:
     args = parser.parse_args()
 
     from pathlib import Path
+
     from backend.backends import FilesystemBackend
     storage = FilesystemBackend(Path(args.pool), Path(args.log))
     answer_log = storage.load_answers()

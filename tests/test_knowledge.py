@@ -13,7 +13,6 @@ import pytest
 from core.knowledge import KnowledgeGraph
 from core.schemas.kg_schemas import Edge, KGNode
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

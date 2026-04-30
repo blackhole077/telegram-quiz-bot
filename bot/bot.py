@@ -20,8 +20,8 @@ from bot.config import bot_settings
 from core.exam import render_exam_pdf
 from core.llm import (generate_exam, grade_answer, grade_from_image,
                       grade_from_text)
-from core.question import filter_by_topic, load_problems, pick_random
-from core.question import fmt_feedback, fmt_question, input_hint
+from core.question import (filter_by_topic, fmt_feedback, fmt_question,
+                           input_hint, load_problems, pick_random)
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
 

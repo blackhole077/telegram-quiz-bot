@@ -14,7 +14,6 @@ from core.schemas.question_schemas import QuestionType
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
 
-
 _WEB_ROOT = Path(__file__).parent.parent
 
 router = APIRouter()

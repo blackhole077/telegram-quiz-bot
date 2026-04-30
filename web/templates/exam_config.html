@@ -42,13 +42,11 @@
         </nav>
         <main>
             <div id="exam-area">
-                <form hx-post="/exam/start" hx-target="#exam-area" hx-swap="innerHTML"
-                    hx-indicator="#exam-loading">
+                <form hx-post="/exam/start" hx-target="#exam-area" hx-swap="innerHTML" hx-indicator="#exam-loading">
                     <div class="config-form">
                         <div class="config-field">
                             <label for="category">Category</label>
-                            <input id="category" type="text" name="category" placeholder="e.g. Linear Algebra"
-                                required>
+                            <input id="category" type="text" name="category" placeholder="e.g. Linear Algebra" required>
                         </div>
                         <div class="config-field">
                             <label for="count">Questions</label>

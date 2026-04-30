@@ -9,9 +9,10 @@ from fastapi.templating import Jinja2Templates
 
 from core.knowledge import get_knowledge_graph
 from core.latex import normalise_latex
-from core.llm import (evaluate_relational_explanation, generate_bridge_question,
-                      generate_scaffolded_derivation, generate_wrong_transposition,
-                      grade_answer, grade_teach_it_back)
+from core.llm import (evaluate_relational_explanation,
+                      generate_bridge_question, generate_scaffolded_derivation,
+                      generate_wrong_transposition, grade_answer,
+                      grade_teach_it_back)
 
 _WEB_ROOT = Path(__file__).parent.parent
 

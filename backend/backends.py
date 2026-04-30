@@ -7,9 +7,9 @@ import sqlite3
 from pathlib import Path
 
 from core.schemas.answer_schemas import AnswerLogEntry
-from core.schemas.question_schemas import (HistoryEntry, PaperRef,
-                                           Question, QuestionType,
-                                           Reference, TextbookRef)
+from core.schemas.question_schemas import (HistoryEntry, PaperRef, Question,
+                                           QuestionType, Reference,
+                                           TextbookRef)
 from core.storage import StorageBackend
 
 # ---------------------------------------------------------------------------
