@@ -20,7 +20,7 @@ _WEB_ROOT = Path(__file__).parent.parent
 router = APIRouter()
 templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
-_service = QuizService(make_backend(settings))
+_service = QuizService(make_backend(settings), settings.topics_path)
 
 
 # NOTE: Don't use Dataclass where Pydantic could be used, for consistency.

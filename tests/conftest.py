@@ -9,8 +9,9 @@ from __future__ import annotations
 import os
 
 from core.schemas.answer_schemas import AnswerLogEntry
-from core.schemas.question_schemas import (HistoryEntry, Question,
-                                           QuestionType, Reference)
+from core.schemas.question_schemas import (HistoryEntry, PaperRef,
+                                           Question, QuestionType,
+                                           SourceRef)
 from core.schemas.schemas import QuizSession
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")
@@ -29,8 +30,8 @@ ALLOWED_USER_ID = 99999
 # ---------------------------------------------------------------------------
 
 
-def make_ref(doc_id: str = "REF1") -> Reference:
-    return Reference(
+def make_ref(doc_id: str = "REF1") -> PaperRef:
+    return PaperRef(
         doc_id=doc_id,
         title="Test Paper",
         authors="Author A",
@@ -49,7 +50,7 @@ def make_question(
     options: list[str] | None = None,
     correct: str = "A",
     created_date: str = "2026-01-01",
-    references: list[Reference] | None = None,
+    references: list[SourceRef] | None = None,
 ) -> Question:
     return Question(
         id=id,

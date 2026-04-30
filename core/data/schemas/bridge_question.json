@@ -1,0 +1,5 @@
+{
+  "question": "string - the bridge question text; must require understanding the edge between both concepts, not just one",
+  "requires_edge": "boolean - true if the question cannot be answered from knowledge of either concept in isolation",
+  "edge_type": "string - the relationship type this question targets (e.g. related, precedes, is-a)"
+}

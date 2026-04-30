@@ -1,0 +1,8 @@
+{
+  "correct": "boolean - true only if the student demonstrated genuine relational understanding, not just correct individual descriptions",
+  "score": "number 0.0-1.0 - partial credit for partially capturing the relationship",
+  "feedback": "string - explanation of what relational claims were present, missing, or incorrect",
+  "missing_relational_claims": "array of strings - load-bearing claims about the connection that were absent",
+  "incorrect_relational_claims": "array of strings - claims about the connection that were wrong or misleading",
+  "model_answer": "string - a concise model answer that demonstrates full relational understanding; show what the student should have said to earn full credit"
+}

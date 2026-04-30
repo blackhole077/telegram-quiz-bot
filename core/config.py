@@ -43,5 +43,9 @@ class Settings(BaseSettings):
     def log_path(self) -> Path:
         return Path(self.data_dir) / "answers.jsonl"
 
+    @property
+    def topics_path(self) -> Path:
+        return Path(self.data_dir) / "topics.json"
+
 
 settings = Settings()

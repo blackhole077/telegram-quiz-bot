@@ -7,8 +7,9 @@ import sqlite3
 from pathlib import Path
 
 from core.schemas.answer_schemas import AnswerLogEntry
-from core.schemas.question_schemas import (HistoryEntry, Question,
-                                           QuestionType, Reference)
+from core.schemas.question_schemas import (HistoryEntry, PaperRef,
+                                           Question, QuestionType,
+                                           Reference, TextbookRef)
 from core.storage import StorageBackend
 
 # ---------------------------------------------------------------------------
@@ -126,11 +127,16 @@ CREATE TABLE IF NOT EXISTS question_options (
 CREATE TABLE IF NOT EXISTS question_references (
     question_id TEXT    NOT NULL REFERENCES questions(id),
     position    INTEGER NOT NULL,
+    source_type TEXT    NOT NULL DEFAULT 'paper',
     doc_id      TEXT    NOT NULL,
     title       TEXT    NOT NULL,
     authors     TEXT    NOT NULL,
     year        INTEGER NOT NULL,
     section     TEXT    NOT NULL,
+    edition     INTEGER,
+    chapter     INTEGER,
+    venue       TEXT,
+    doi         TEXT,
     PRIMARY KEY (question_id, position)
 );
 
@@ -188,20 +194,26 @@ class SQLiteBackend:
                     (qid,),
                 ).fetchall()
             ]
-            references = [
-                Reference(
-                    doc_id=doc_id,
-                    title=title,
-                    authors=authors,
-                    year=year,
-                    section=section,
-                )
-                for (doc_id, title, authors, year, section) in cur.execute(
-                    "SELECT doc_id, title, authors, year, section "
-                    "FROM question_references WHERE question_id = ? ORDER BY position",
-                    (qid,),
-                ).fetchall()
-            ]
+            references = []
+            for (source_type, doc_id, title, authors, year, section,
+                 edition, chapter, venue, doi) in cur.execute(
+                "SELECT source_type, doc_id, title, authors, year, section, "
+                "edition, chapter, venue, doi "
+                "FROM question_references WHERE question_id = ? ORDER BY position",
+                (qid,),
+            ).fetchall():
+                if source_type == "textbook":
+                    references.append(TextbookRef(
+                        doc_id=doc_id, title=title, authors=authors,
+                        year=year, section=section,
+                        edition=edition, chapter=chapter,
+                    ))
+                else:
+                    references.append(PaperRef(
+                        doc_id=doc_id, title=title, authors=authors,
+                        year=year, section=section,
+                        venue=venue, doi=doi,
+                    ))
             history = [
                 HistoryEntry(date=date, correct=bool(correct))
                 for (date, correct) in cur.execute(
@@ -259,15 +271,20 @@ class SQLiteBackend:
                     )
                 for position, ref in enumerate(question.references):
                     self._conn.execute(
-                        "INSERT INTO question_references VALUES (?,?,?,?,?,?,?)",
+                        "INSERT INTO question_references VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (
                             question.id,
                             position,
+                            ref.source_type,
                             ref.doc_id,
                             ref.title,
                             ref.authors,
                             ref.year,
                             ref.section,
+                            getattr(ref, "edition", None),
+                            getattr(ref, "chapter", None),
+                            getattr(ref, "venue", None),
+                            getattr(ref, "doi", None),
                         ),
                     )
                 for position, entry in enumerate(question.history):

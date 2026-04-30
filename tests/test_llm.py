@@ -19,11 +19,16 @@ import openai
 import pytest
 from PIL import Image
 
-from core.llm import (OpenAIBackend, generate_exam, grade_answer,
+from core.llm import (OpenAIBackend, evaluate_relational_explanation,
+                      generate_bridge_question, generate_exam,
+                      generate_scaffolded_derivation,
+                      generate_wrong_transposition, grade_answer,
                       grade_from_image, grade_from_text, grade_teach_it_back,
                       normalize_image, override_backend)
-from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
-                                      GradeResult, TeachItBackResult)
+from core.schemas.llm_schemas import (BridgeQuestion, ExamGradeResult,
+                                      ExamProblem, GradeResult,
+                                      RelationalGradeResult,
+                                      ScaffoldedDerivation, TeachItBackResult)
 from tests.conftest import ErrorBackend, MockBackend
 
 # ---------------------------------------------------------------------------
@@ -358,6 +363,7 @@ class TestGradeTeachItBack:
                 "feedback": "Clear and accurate explanation.",
                 "missing_concepts": [],
                 "analogy_issues": [],
+                "model_answer": "Gradient descent minimises the loss by iteratively moving parameters in the direction of steepest decrease.",
             }
         )
 
@@ -375,6 +381,19 @@ class TestGradeTeachItBack:
         assert result.missing_concepts == []
         assert result.analogy_issues == []
         assert result.error == ""
+
+    def test_model_answer_populated(self):
+        mock = MockBackend(self._good_payload())
+        with override_backend(mock):
+            result = grade_teach_it_back("gradient descent", "high school student", "explanation")
+        assert result.model_answer != ""
+
+    def test_model_answer_defaults_to_empty_when_absent(self):
+        payload = json.dumps({"score": 0.8, "feedback": "ok", "missing_concepts": [], "analogy_issues": []})
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = grade_teach_it_back("entropy", "undergrad", "explanation")
+        assert result.model_answer == ""
 
     def test_missing_concepts_populated(self):
         payload = json.dumps(
@@ -438,6 +457,30 @@ class TestGradeTeachItBack:
                 topic_material="Shannon 1948 paper context",
             )
         assert "Shannon 1948 paper context" in mock.last_system
+
+    def test_analogy_issues_bare_string_coerced_to_list(self):
+        payload = json.dumps({
+            "score": 0.6,
+            "feedback": "ok",
+            "missing_concepts": [],
+            "analogy_issues": "The analogy provided is misleading between distributions.",
+        })
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = grade_teach_it_back("entropy", "undergrad", "explanation")
+        assert result.analogy_issues == ["The analogy provided is misleading between distributions."]
+
+    def test_missing_concepts_bare_string_coerced_to_list(self):
+        payload = json.dumps({
+            "score": 0.5,
+            "feedback": "ok",
+            "missing_concepts": "convergence criterion",
+            "analogy_issues": [],
+        })
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = grade_teach_it_back("gradient descent", "undergrad", "explanation")
+        assert result.missing_concepts == ["convergence criterion"]
 
     def test_json_parse_failure_returns_graceful_error(self):
         mock = MockBackend("not valid json")
@@ -514,3 +557,328 @@ class TestOpenAIBackendConfiguration:
         with patch.object(backend._client.chat.completions, "create", mock_create):
             backend.chat("sys", "user")
         assert mock_create.call_args.kwargs["model"] == model
+
+
+# ---------------------------------------------------------------------------
+# generate_bridge_question
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateBridgeQuestion:
+    def _payload(self, question: str = "Why does X require Y?") -> str:
+        return json.dumps(
+            {"question": question, "requires_edge": True, "edge_type": "related"}
+        )
+
+    def test_returns_bridge_question_instance(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            result = generate_bridge_question("Attention Mechanism", "Transformer", "related")
+        assert isinstance(result, BridgeQuestion)
+
+    def test_question_text_populated(self):
+        mock = MockBackend(self._payload("How does attention enable the Transformer?"))
+        with override_backend(mock):
+            result = generate_bridge_question("Attention Mechanism", "Transformer", "related")
+        assert result.question == "How does attention enable the Transformer?"
+        assert result.requires_edge is True
+        assert result.error == ""
+
+    def test_node_names_in_user_message(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_bridge_question("Concept Alpha", "Concept Beta", "precedes")
+        assert "Concept Alpha" in mock.last_user
+        assert "Concept Beta" in mock.last_user
+        assert "precedes" in mock.last_user
+
+    def test_node_descriptions_in_user_message_when_provided(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_bridge_question(
+                "Alpha",
+                "Beta",
+                "related",
+                node_a_description="desc of alpha",
+                node_b_description="desc of beta",
+            )
+        assert "desc of alpha" in mock.last_user
+        assert "desc of beta" in mock.last_user
+
+    def test_topic_material_injected_into_system_prompt(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_bridge_question("A", "B", "related", topic_material="extra context")
+        assert "extra context" in mock.last_system
+
+    def test_system_prompt_references_bridge_or_relational(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_bridge_question("A", "B", "related")
+        lower_sys = mock.last_system.lower()
+        assert "bridge" in lower_sys or "relational" in lower_sys or "connection" in lower_sys
+
+    def test_invalid_json_returns_error_result(self):
+        mock = MockBackend("not json")
+        with override_backend(mock):
+            result = generate_bridge_question("A", "B", "related")
+        assert result.error != ""
+        assert result.question == ""
+
+    def test_openai_error_returns_error_result(self):
+        error_backend = ErrorBackend(openai.APIConnectionError(request=MagicMock()))
+        with override_backend(error_backend):
+            result = generate_bridge_question("A", "B", "related")
+        assert result.error != ""
+
+    def test_edge_type_preserved_on_error(self):
+        mock = MockBackend("bad json")
+        with override_backend(mock):
+            result = generate_bridge_question("A", "B", "precedes")
+        assert result.edge_type == "precedes"
+
+
+# ---------------------------------------------------------------------------
+# generate_wrong_transposition
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateWrongTransposition:
+    def _payload(self, text: str = "Wrong application here.") -> str:
+        return json.dumps({"text": text})
+
+    def test_returns_string(self):
+        mock = MockBackend(self._payload("Plausible but wrong."))
+        with override_backend(mock):
+            result = generate_wrong_transposition("entropy", "information theory", "thermodynamics")
+        assert isinstance(result, str)
+        assert result == "Plausible but wrong."
+
+    def test_concept_and_domains_in_user_message(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_wrong_transposition("attention", "NLP", "computer vision")
+        assert "attention" in mock.last_user
+        assert "NLP" in mock.last_user
+        assert "computer vision" in mock.last_user
+
+    def test_topic_material_injected_into_system_prompt(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_wrong_transposition("concept", "domain A", "domain B", topic_material="extra")
+        assert "extra" in mock.last_system
+
+    def test_system_prompt_mentions_misconception(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_wrong_transposition("concept", "domain A", "domain B")
+        assert "misconception" in mock.last_system.lower() or "wrong" in mock.last_system.lower()
+
+    def test_invalid_json_returns_empty_string(self):
+        mock = MockBackend("not json")
+        with override_backend(mock):
+            result = generate_wrong_transposition("concept", "A", "B")
+        assert result == ""
+
+    def test_openai_error_returns_empty_string(self):
+        error_backend = ErrorBackend(openai.APIConnectionError(request=MagicMock()))
+        with override_backend(error_backend):
+            result = generate_wrong_transposition("concept", "A", "B")
+        assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# generate_scaffolded_derivation
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateScaffoldedDerivation:
+    def _payload(self) -> str:
+        return json.dumps(
+            {
+                "prompt": "Step 1. [...] Step 3.",
+                "blank_indices": [1],
+                "solution_steps": ["Step 1.", "Step 2.", "Step 3."],
+            }
+        )
+
+    def test_returns_scaffolded_derivation_instance(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            result = generate_scaffolded_derivation("derivation text here")
+        assert isinstance(result, ScaffoldedDerivation)
+
+    def test_fields_populated(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            result = generate_scaffolded_derivation("derivation text here")
+        assert "[...]" in result.prompt
+        assert result.blank_indices == [1]
+        assert len(result.solution_steps) == 3
+        assert result.error == ""
+
+    def test_derivation_text_in_user_message(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_scaffolded_derivation("my derivation steps")
+        assert "my derivation steps" in mock.last_user
+
+    def test_topic_material_injected_into_system_prompt(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_scaffolded_derivation("derivation", topic_material="background")
+        assert "background" in mock.last_system
+
+    def test_system_prompt_mentions_load_bearing_or_blanks(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            generate_scaffolded_derivation("some derivation")
+        lower_sys = mock.last_system.lower()
+        assert "load-bearing" in lower_sys or "blank" in lower_sys or "fill" in lower_sys
+
+    def test_invalid_json_returns_error_result(self):
+        mock = MockBackend("not json")
+        with override_backend(mock):
+            result = generate_scaffolded_derivation("derivation")
+        assert result.error != ""
+        assert result.prompt == ""
+
+    def test_openai_error_returns_error_result(self):
+        error_backend = ErrorBackend(openai.APIConnectionError(request=MagicMock()))
+        with override_backend(error_backend):
+            result = generate_scaffolded_derivation("derivation")
+        assert result.error != ""
+
+
+# ---------------------------------------------------------------------------
+# evaluate_relational_explanation
+# ---------------------------------------------------------------------------
+
+
+class TestEvaluateRelationalExplanation:
+    def _payload(
+        self,
+        correct: bool = True,
+        score: float = 0.9,
+        missing: list[str] | None = None,
+        incorrect: list[str] | None = None,
+        model_answer: str = "A strong answer would explain how A enables B by...",
+    ) -> str:
+        return json.dumps(
+            {
+                "correct": correct,
+                "score": score,
+                "feedback": "Good relational explanation.",
+                "missing_relational_claims": missing or [],
+                "incorrect_relational_claims": incorrect or [],
+                "model_answer": model_answer,
+            }
+        )
+
+    def test_returns_relational_grade_result_instance(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            result = evaluate_relational_explanation(
+                "explanation text", "KL Divergence", "Encoder", "related"
+            )
+        assert isinstance(result, RelationalGradeResult)
+
+    def test_correct_answer_fields(self):
+        mock = MockBackend(self._payload(correct=True, score=1.0))
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.correct is True
+        assert result.score == 1.0
+        assert result.error == ""
+
+    def test_partial_credit_with_missing_claims(self):
+        mock = MockBackend(
+            self._payload(correct=False, score=0.5, missing=["asymmetry of penalty"])
+        )
+        with override_backend(mock):
+            result = evaluate_relational_explanation("partial text", "A", "B", "related")
+        assert result.score == 0.5
+        assert "asymmetry of penalty" in result.missing_relational_claims
+
+    def test_incorrect_relational_claims_captured(self):
+        mock = MockBackend(
+            self._payload(correct=False, score=0.2, incorrect=["wrong claim about edge"])
+        )
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert "wrong claim about edge" in result.incorrect_relational_claims
+
+    def test_concept_names_and_edge_type_in_user_message(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            evaluate_relational_explanation(
+                "student explanation", "Concept Alpha", "Concept Beta", "precedes"
+            )
+        assert "Concept Alpha" in mock.last_user
+        assert "Concept Beta" in mock.last_user
+        assert "precedes" in mock.last_user
+        assert "student explanation" in mock.last_user
+
+    def test_topic_material_injected_into_system_prompt(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            evaluate_relational_explanation("text", "A", "B", "related", topic_material="ctx")
+        assert "ctx" in mock.last_system
+
+    def test_system_prompt_stresses_relational_distinction(self):
+        mock = MockBackend(self._payload())
+        with override_backend(mock):
+            evaluate_relational_explanation("text", "A", "B", "related")
+        lower_sys = mock.last_system.lower()
+        assert "relational" in lower_sys or "connection" in lower_sys or "relationship" in lower_sys
+
+    def test_invalid_json_returns_error_result(self):
+        mock = MockBackend("not json")
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.error != ""
+        assert result.correct is False
+
+    def test_openai_error_returns_error_result(self):
+        error_backend = ErrorBackend(openai.APIConnectionError(request=MagicMock()))
+        with override_backend(error_backend):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.error != ""
+
+    def test_model_answer_populated(self):
+        mock = MockBackend(self._payload(model_answer="A strong answer would explain X via Y."))
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.model_answer == "A strong answer would explain X via Y."
+
+    def test_model_answer_defaults_to_empty_when_absent(self):
+        payload = json.dumps({
+            "correct": True, "score": 1.0, "feedback": "ok",
+            "missing_relational_claims": [], "incorrect_relational_claims": [],
+        })
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.model_answer == ""
+
+    def test_missing_relational_claims_bare_string_coerced_to_list(self):
+        payload = json.dumps({
+            "correct": False, "score": 0.4, "feedback": "ok",
+            "missing_relational_claims": "asymmetry of the penalty term",
+            "incorrect_relational_claims": [],
+        })
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.missing_relational_claims == ["asymmetry of the penalty term"]
+
+    def test_incorrect_relational_claims_bare_string_coerced_to_list(self):
+        payload = json.dumps({
+            "correct": False, "score": 0.3, "feedback": "ok",
+            "missing_relational_claims": [],
+            "incorrect_relational_claims": "the penalty is symmetric",
+        })
+        mock = MockBackend(payload)
+        with override_backend(mock):
+            result = evaluate_relational_explanation("text", "A", "B", "related")
+        assert result.incorrect_relational_claims == ["the penalty is symmetric"]

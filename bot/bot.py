@@ -42,7 +42,7 @@ try:
 except FileNotFoundError:
     _PROBLEMS = []
 
-_service: QuizService = QuizService(make_backend(bot_settings))
+_service: QuizService = QuizService(make_backend(bot_settings), bot_settings.topics_path)
 
 _Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]]
 

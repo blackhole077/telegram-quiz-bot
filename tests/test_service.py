@@ -25,8 +25,8 @@ def mock_backend() -> MagicMock:
 
 
 @pytest.fixture
-def service(mock_backend) -> QuizService:
-    return QuizService(mock_backend)
+def service(mock_backend, tmp_path) -> QuizService:
+    return QuizService(mock_backend, tmp_path / "topics.json")
 
 
 # ---------------------------------------------------------------------------

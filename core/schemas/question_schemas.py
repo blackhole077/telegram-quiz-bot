@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class QuestionType(str, Enum):
@@ -14,12 +15,13 @@ class QuestionType(str, Enum):
 
 
 class Reference(BaseModel):
-    """A bibliographic reference attached to a question.
+    """Base bibliographic reference.
 
     ``doc_id`` uses the format ``<AUTHOR_YEAR_KEYWORD>`` (e.g.
     ``"SUTTON_2018_RL"``); must be unique within a question's reference
     list and is used as the ``doc_id`` key in ``AnswerLogEntry``.
-    ``section`` is a chapter, section, or page range (e.g. ``"Ch. 6"``).
+    ``section`` is a display string for the relevant part of the source
+    (e.g. ``"Ch. 6"`` or ``"Section 3.2"``).
     """
 
     doc_id: str
@@ -27,6 +29,21 @@ class Reference(BaseModel):
     authors: str
     year: int
     section: str
+
+
+class TextbookRef(Reference):
+    source_type: Literal["textbook"] = "textbook"
+    edition: int | None = None
+    chapter: int | None = None
+
+
+class PaperRef(Reference):
+    source_type: Literal["paper"] = "paper"
+    venue: str | None = None
+    doi: str | None = None
+
+
+SourceRef = Annotated[TextbookRef | PaperRef, Field(discriminator="source_type")]
 
 
 class HistoryEntry(BaseModel):
@@ -66,7 +83,7 @@ class Question(BaseModel):
     options: list[str]
     correct: str
     explanation: str
-    references: list[Reference]
+    references: list[SourceRef]
     created_date: str
     session_date: str
     level: int = 1
@@ -79,7 +96,7 @@ class DifficultQuestion(BaseModel):
 
     question: Question
     correct_answer_rate: float
-    reference_material: Reference | None
+    reference_material: SourceRef | None
     related_material: list[str] = []
 
 

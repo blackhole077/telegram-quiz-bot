@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 from core import srs
 from core.question import normalise_answer, shuffle_answers
@@ -12,6 +14,7 @@ from core.refinement import RefinementReport, analyze_gaps
 from core.schemas.answer_schemas import AnswerLogEntry, AnswerOutcome
 from core.schemas.question_schemas import DifficultQuestion, Question
 from core.schemas.schemas import QuizSession
+from core.schemas.topic_schemas import Topic
 from core.selector import select_session
 from core.storage import StorageBackend
 
@@ -23,8 +26,15 @@ class QuizService:
     rather than calling srs, selector, or storage directly.
     """
 
-    def __init__(self, backend: StorageBackend) -> None:
+    def __init__(self, backend: StorageBackend, topics_path: Path) -> None:
         self._backend = backend
+        self._topics_path = topics_path
+
+    def _load_topics(self) -> list[Topic]:
+        try:
+            return [Topic.model_validate(t) for t in json.loads(self._topics_path.read_text())]
+        except FileNotFoundError:
+            return []
 
     def prepare_session(self, today: str) -> list[Question]:
         """Load the question pool and return those due today."""
@@ -89,9 +99,20 @@ class QuizService:
         updated_map.update(session.original_map)
         self._backend.save_questions(list(updated_map.values()))
 
-    def get_topics(self) -> list[str]:
-        """Return sorted list of unique topics across the question pool."""
-        return sorted({q.topic for q in self._backend.load_questions()})
+    def get_topics(self) -> dict[str, list[str]]:
+        """Return topics grouped by domain from the registry, each group sorted.
+
+        The dict is ordered: named domains alphabetically, then ``""`` last
+        for any topics with no domain assigned.
+        """
+        grouped: dict[str, list[str]] = {}
+        for topic in self._load_topics():
+            grouped.setdefault(topic.domain, []).append(topic.name)
+        named = {domain: sorted(names) for domain, names in sorted(grouped.items()) if domain}
+        result = dict(named)
+        if "" in grouped:
+            result[""] = sorted(grouped[""])
+        return result
 
     def prepare_practice(self, topic: str | None = None, count: int = 10) -> list[Question]:
         """Return a random sample of questions, optionally filtered by topic.

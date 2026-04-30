@@ -1,0 +1,14 @@
+<form hx-post="/learn/submit" hx-target="#learn-area" hx-swap="innerHTML"
+    hx-indicator="#learn-loading">
+    <div class="exam-problem">
+        <div class="problem-header">
+            <span class="problem-topic">{{ subtitle }}</span>
+        </div>
+        <p class="problem-prompt">{{ prompt }}</p>
+        <textarea name="answer" class="answer-textarea" placeholder="{{ placeholder }}" required></textarea>
+    </div>
+    <button type="submit" class="start-btn">Submit</button>
+</form>
+<div id="learn-loading" class="htmx-indicator loading-indicator">
+    Grading your answer...
+</div>

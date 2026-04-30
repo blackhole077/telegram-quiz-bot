@@ -10,7 +10,7 @@ from backend.backends import make_backend
 from core.config import settings
 from core.service import QuizService
 
-from .routers import exam, practice, quiz
+from .routers import exam, learn, practice, quiz
 
 _WEB_ROOT = Path(__file__).parent
 
@@ -18,7 +18,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=str(_WEB_ROOT / "static")), name="static")
 templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
-_service = QuizService(make_backend(settings))
+_service = QuizService(make_backend(settings), settings.topics_path)
 
 
 def _today() -> str:
@@ -28,6 +28,7 @@ def _today() -> str:
 app.include_router(quiz.router)
 app.include_router(practice.router)
 app.include_router(exam.router)
+app.include_router(learn.router)
 
 
 # NOTE: This will be our landing page where we'd select what we want to do (e.g., Quiz, Exam, etc.)

@@ -38,6 +38,7 @@
             <a href="/" class="nav-link">Review</a>
             <a href="/practice" class="nav-link active">Practice</a>
             <a href="/exam" class="nav-link">Exam</a>
+            <a href="/learn" class="nav-link">Learn</a>
         </nav>
         <main>
             <div id="practice-area">
@@ -47,8 +48,12 @@
                             <label for="topic">Topic</label>
                             <select id="topic" name="topic">
                                 <option value="">All topics</option>
-                                {% for topic in topics %}
-                                <option value="{{ topic }}">{{ topic }}</option>
+                                {% for domain, domain_topics in topics.items() %}
+                                <optgroup label="{{ domain if domain else 'Uncategorized' }}">
+                                    {% for topic in domain_topics %}
+                                    <option value="{{ topic }}">{{ topic }}</option>
+                                    {% endfor %}
+                                </optgroup>
                                 {% endfor %}
                             </select>
                         </div>

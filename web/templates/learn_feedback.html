@@ -1,0 +1,48 @@
+<div class="quiz-card summary-card">
+    {% if error %}
+    <p class="error-msg">{{ error }}</p>
+    {% else %}
+    <div class="feedback-header {{ 'feedback-correct' if correct else 'feedback-incorrect' }}">
+        {{ "Correct" if correct else "Needs work" }}
+    </div>
+    <p class="score">{{ "%.0f"|format(score * 100) }}%</p>
+    <p class="explanation">{{ feedback }}</p>
+
+    {% if missing_claims %}
+    <div class="wrong-answers">
+        <details>
+            <summary class="wrong-answers-toggle">Missing claims ({{ missing_claims|length }})</summary>
+            <ul class="wrong-answers-list">
+                {% for claim in missing_claims %}
+                <li class="wrong-item">{{ claim }}</li>
+                {% endfor %}
+            </ul>
+        </details>
+    </div>
+    {% endif %}
+
+    {% if incorrect_claims %}
+    <div class="wrong-answers">
+        <details>
+            <summary class="wrong-answers-toggle">Incorrect claims ({{ incorrect_claims|length }})</summary>
+            <ul class="wrong-answers-list">
+                {% for claim in incorrect_claims %}
+                <li class="wrong-item">{{ claim }}</li>
+                {% endfor %}
+            </ul>
+        </details>
+    </div>
+    {% endif %}
+
+    {% if model_solution %}
+    <div class="wrong-answers">
+        <details>
+            <summary class="wrong-answers-toggle">Model solution</summary>
+            <p class="explanation" style="margin-top:8px">{{ model_solution }}</p>
+        </details>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <a href="/learn" class="start-btn" style="display:inline-block;margin-top:24px">New Exercise</a>
+</div>

@@ -6,9 +6,19 @@ See bot/data/README.md for the full correspondence table.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Annotated, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
+
+
+def _coerce_str_to_list(value: object) -> object:
+    """Allow LLMs that return a bare string to be accepted as a one-item list."""
+    if isinstance(value, str):
+        return [value] if value else []
+    return value
+
+
+_StrList = Annotated[list[str], BeforeValidator(_coerce_str_to_list)]
 
 
 @runtime_checkable
@@ -72,6 +82,44 @@ class TeachItBackResult(BaseModel):
 
     score: float = Field(ge=0.0, le=1.0)
     feedback: str
-    missing_concepts: list[str] = Field(default_factory=list)
-    analogy_issues: list[str] = Field(default_factory=list)
+    missing_concepts: _StrList = Field(default_factory=list)
+    analogy_issues: _StrList = Field(default_factory=list)
+    model_answer: str = ""
+    error: str = ""
+
+
+class BridgeQuestion(BaseModel):
+    """A question that requires understanding the edge between two concepts."""
+
+    question: str
+    requires_edge: bool
+    edge_type: str
+    error: str = ""
+
+
+class WrongTransposition(BaseModel):
+    """A plausible-but-wrong application of a concept in a new domain."""
+
+    text: str
+    error: str = ""
+
+
+class ScaffoldedDerivation(BaseModel):
+    """A fill-in-the-blank derivation with load-bearing steps removed."""
+
+    prompt: str
+    blank_indices: list[int] = Field(default_factory=list)
+    solution_steps: _StrList = Field(default_factory=list)
+    error: str = ""
+
+
+class RelationalGradeResult(BaseModel):
+    """Grade for a free-form explanation of the relationship between two concepts."""
+
+    correct: bool
+    score: float = Field(ge=0.0, le=1.0)
+    feedback: str
+    missing_relational_claims: _StrList = Field(default_factory=list)
+    incorrect_relational_claims: _StrList = Field(default_factory=list)
+    model_answer: str = ""
     error: str = ""

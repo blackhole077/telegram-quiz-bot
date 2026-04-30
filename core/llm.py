@@ -32,9 +32,11 @@ except ImportError:
     pass
 
 from core.config import settings
-from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
-                                      GradeResult, LLMBackend,
-                                      TeachItBackResult)
+from core.schemas.llm_schemas import (BridgeQuestion, ExamGradeResult,
+                                      ExamProblem, GradeResult, LLMBackend,
+                                      RelationalGradeResult,
+                                      ScaffoldedDerivation, TeachItBackResult,
+                                      WrongTransposition)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,10 @@ _SYS_GRADER = _load_prompt("system/grader.md")
 _SYS_EXAMINER = _load_prompt("system/examiner.md")
 _SYS_EXAM_GRADER = _load_prompt("system/exam_grader.md")
 _SYS_TEACH_IT_BACK = _load_prompt("system/teach_it_back.md")
+_SYS_BRIDGE_QUESTION = _load_prompt("system/bridge_question.md")
+_SYS_WRONG_TRANSPOSITION = _load_prompt("system/wrong_transposition.md")
+_SYS_SCAFFOLDED_DERIVATION = _load_prompt("system/scaffolded_derivation.md")
+_SYS_RELATIONAL_GRADER = _load_prompt("system/relational_grader.md")
 
 # User message templates
 _USR_GRADER = _load_prompt("user/grader.md")
@@ -69,12 +75,20 @@ _USR_EXAMINER_WEAK = _load_prompt("user/examiner_weak_section.md")
 _USR_EXAM_TEXT = _load_prompt("user/exam_grader_text.md")
 _USR_EXAM_IMAGE = _load_prompt("user/exam_grader_image.md")
 _USR_TEACH_IT_BACK = _load_prompt("user/teach_it_back.md")
+_USR_BRIDGE_QUESTION = _load_prompt("user/bridge_question.md")
+_USR_WRONG_TRANSPOSITION = _load_prompt("user/wrong_transposition.md")
+_USR_SCAFFOLDED_DERIVATION = _load_prompt("user/scaffolded_derivation.md")
+_USR_RELATIONAL_GRADER = _load_prompt("user/relational_grader.md")
 
 # Response schemas (injected verbatim into system prompts)
 _SCH_GRADE = _load_schema("grade_result")
 _SCH_EXAM_PROBLEMS = _load_schema("exam_problems")
 _SCH_EXAM_GRADE = _load_schema("exam_grade_result")
 _SCH_TEACH_IT_BACK = _load_schema("teach_it_back_result")
+_SCH_BRIDGE_QUESTION = _load_schema("bridge_question")
+_SCH_WRONG_TRANSPOSITION = _load_schema("wrong_transposition")
+_SCH_SCAFFOLDED_DERIVATION = _load_schema("scaffolded_derivation")
+_SCH_RELATIONAL_GRADE = _load_schema("relational_grade_result")
 
 
 # ---------------------------------------------------------------------------
@@ -339,4 +353,123 @@ def grade_teach_it_back(
         logger.error("grade_teach_it_back failed: %s", exc)
         return TeachItBackResult(
             score=0.0, feedback="Grading failed - please try again.", error=str(exc)
+        )
+
+
+def generate_bridge_question(
+    node_a_name: str,
+    node_b_name: str,
+    edge_type: str,
+    node_a_description: str = "",
+    node_b_description: str = "",
+    topic_material: str = "",
+) -> BridgeQuestion:
+    """Generate a question that requires understanding the edge between two concepts."""
+    system = _render(
+        _SYS_BRIDGE_QUESTION,
+        schema=_SCH_BRIDGE_QUESTION,
+        topic_material=_material_block(topic_material),
+    )
+    user = _render(
+        _USR_BRIDGE_QUESTION,
+        node_a_name=node_a_name,
+        node_b_name=node_b_name,
+        edge_type=edge_type,
+        node_a_description=node_a_description,
+        node_b_description=node_b_description,
+    )
+    try:
+        return BridgeQuestion.model_validate(json.loads(_backend.chat(system, user)))
+    except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("generate_bridge_question failed: %s", exc)
+        return BridgeQuestion(
+            question="",
+            requires_edge=False,
+            edge_type=edge_type,
+            error=str(exc),
+        )
+
+
+def generate_wrong_transposition(
+    concept: str,
+    domain_a: str,
+    domain_b: str,
+    topic_material: str = "",
+) -> str:
+    """Generate a plausible-but-wrong application of concept in domain_b.
+
+    Returns the transposition text, or empty string on failure.
+    """
+    system = _render(
+        _SYS_WRONG_TRANSPOSITION,
+        schema=_SCH_WRONG_TRANSPOSITION,
+        topic_material=_material_block(topic_material),
+    )
+    user = _render(
+        _USR_WRONG_TRANSPOSITION,
+        concept=concept,
+        domain_a=domain_a,
+        domain_b=domain_b,
+    )
+    try:
+        result = WrongTransposition.model_validate(
+            json.loads(_backend.chat(system, user))
+        )
+        return result.text
+    except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("generate_wrong_transposition failed: %s", exc)
+        return ""
+
+
+def generate_scaffolded_derivation(
+    derivation_text: str,
+    topic_material: str = "",
+) -> ScaffoldedDerivation:
+    """Identify load-bearing steps and return a fill-in-the-blank derivation."""
+    system = _render(
+        _SYS_SCAFFOLDED_DERIVATION,
+        schema=_SCH_SCAFFOLDED_DERIVATION,
+        topic_material=_material_block(topic_material),
+    )
+    user = _render(_USR_SCAFFOLDED_DERIVATION, derivation_text=derivation_text)
+    try:
+        return ScaffoldedDerivation.model_validate(
+            json.loads(_backend.chat(system, user))
+        )
+    except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("generate_scaffolded_derivation failed: %s", exc)
+        return ScaffoldedDerivation(prompt="", error=str(exc))
+
+
+def evaluate_relational_explanation(
+    user_text: str,
+    node_a: str,
+    node_b: str,
+    edge_type: str,
+    topic_material: str = "",
+) -> RelationalGradeResult:
+    """Grade a free-form explanation for relational understanding between two concepts."""
+    system = _render(
+        _SYS_RELATIONAL_GRADER,
+        schema=_SCH_RELATIONAL_GRADE,
+        topic_material=_material_block(topic_material),
+    )
+    user = _render(
+        _USR_RELATIONAL_GRADER,
+        node_a=node_a,
+        node_b=node_b,
+        edge_type=edge_type,
+        user_text=user_text,
+    )
+    try:
+        return RelationalGradeResult.model_validate(
+            json.loads(_backend.chat(system, user))
+        )
+    except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("evaluate_relational_explanation failed: %s", exc)
+        return RelationalGradeResult(
+            correct=False,
+            score=0.0,
+            feedback="Grading failed - please try again.",
+            error=str(exc),
         )

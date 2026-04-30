@@ -2,5 +2,5 @@
   "correct": "boolean",
   "score": "number 0.0-1.0",
   "feedback": "string - brief explanation of what was right or wrong",
-  "model_solution": "string - full worked solution the student should study"
+  "model_solution": "string - full worked solution the student should study; always populate this, even if the student's answer was correct"
 }

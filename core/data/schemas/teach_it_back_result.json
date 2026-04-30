@@ -2,5 +2,6 @@
   "score": "number 0.0-1.0",
   "feedback": "string - concise overall assessment",
   "missing_concepts": ["string - concept or claim the explanation omitted"],
-  "analogy_issues": ["string - description of any analogy that misleads rather than clarifies"]
+  "analogy_issues": ["string - description of any analogy that misleads rather than clarifies"],
+  "model_answer": "string - a model explanation of the concept tailored to the specified audience; show what a high-scoring answer would have included"
 }

@@ -1,0 +1,5 @@
+{
+  "prompt": "string - the full derivation text with load-bearing steps replaced by [...]",
+  "blank_indices": "array of integers - 0-based indices into solution_steps of the blanked steps",
+  "solution_steps": "array of strings - all original steps in order, numbered from 0"
+}
