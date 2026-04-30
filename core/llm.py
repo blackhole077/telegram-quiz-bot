@@ -32,11 +32,17 @@ except ImportError:
     pass
 
 from core.config import settings
-from core.schemas.llm_schemas import (BridgeQuestion, ExamGradeResult,
-                                      ExamProblem, GradeResult, LLMBackend,
-                                      RelationalGradeResult,
-                                      ScaffoldedDerivation, TeachItBackResult,
-                                      WrongTransposition)
+from core.schemas.llm_schemas import (
+    BridgeQuestion,
+    ExamGradeResult,
+    ExamProblem,
+    GradeResult,
+    LLMBackend,
+    RelationalGradeResult,
+    ScaffoldedDerivation,
+    TeachItBackResult,
+    WrongTransposition,
+)
 
 logger = logging.getLogger(__name__)
 

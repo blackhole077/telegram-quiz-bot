@@ -165,7 +165,9 @@ class TestRenderExamPdf:
         assert result[:4] == b"%PDF"
 
     def test_multiple_problems(self):
-        result = render_exam_pdf(_problems(num_exam_problem=5), "Linear Algebra", "2026-04-28")
+        result = render_exam_pdf(
+            _problems(num_exam_problem=5), "Linear Algebra", "2026-04-28"
+        )
         assert result[:4] == b"%PDF"
 
     def test_full_latex_including_pmatrix(self):

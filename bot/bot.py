@@ -12,16 +12,27 @@ from pathlib import Path
 from typing import Any
 
 from telegram import Update
-from telegram.ext import (Application, CommandHandler, ContextTypes,
-                          ConversationHandler, MessageHandler, filters)
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
 
 from backend import make_backend
 from bot.config import bot_settings
 from core.exam import render_exam_pdf
-from core.llm import (generate_exam, grade_answer, grade_from_image,
-                      grade_from_text)
-from core.question import (filter_by_topic, fmt_feedback, fmt_question,
-                           input_hint, load_problems, pick_random)
+from core.llm import generate_exam, grade_answer, grade_from_image, grade_from_text
+from core.question import (
+    filter_by_topic,
+    fmt_feedback,
+    fmt_question,
+    input_hint,
+    load_problems,
+    pick_random,
+)
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
 
@@ -42,7 +53,9 @@ try:
 except FileNotFoundError:
     _PROBLEMS = []
 
-_service: QuizService = QuizService(make_backend(bot_settings), bot_settings.topics_path)
+_service: QuizService = QuizService(
+    make_backend(bot_settings), bot_settings.topics_path
+)
 
 _Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, Any]]
 

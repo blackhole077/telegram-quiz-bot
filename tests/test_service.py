@@ -8,8 +8,12 @@ import pytest
 
 from core.refinement import RefinementReport
 from core.schemas.answer_schemas import AnswerLogEntry, AnswerOutcome
-from core.schemas.question_schemas import (DifficultQuestion, HistoryEntry,
-                                           Question, QuestionType)
+from core.schemas.question_schemas import (
+    DifficultQuestion,
+    HistoryEntry,
+    Question,
+    QuestionType,
+)
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
 from core.storage import StorageBackend

@@ -121,9 +121,7 @@ def fmt_feedback(question: Question, correct: bool) -> str:
         lbls = labels(question)
         if question.correct in lbls:
             idx = lbls.index(question.correct)
-            answer_text = (
-                f"\nCorrect answer: {question.correct}  {clean_option(question.options[idx])}"
-            )
+            answer_text = f"\nCorrect answer: {question.correct}  {clean_option(question.options[idx])}"
         else:
             answer_text = f"\nCorrect answer: {question.correct}"
 

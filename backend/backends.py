@@ -7,9 +7,14 @@ import sqlite3
 from pathlib import Path
 
 from core.schemas.answer_schemas import AnswerLogEntry
-from core.schemas.question_schemas import (HistoryEntry, PaperRef, Question,
-                                           QuestionType, Reference,
-                                           TextbookRef)
+from core.schemas.question_schemas import (
+    HistoryEntry,
+    PaperRef,
+    Question,
+    QuestionType,
+    Reference,
+    TextbookRef,
+)
 from core.storage import StorageBackend
 
 # ---------------------------------------------------------------------------
@@ -195,25 +200,47 @@ class SQLiteBackend:
                 ).fetchall()
             ]
             references = []
-            for (source_type, doc_id, title, authors, year, section,
-                 edition, chapter, venue, doi) in cur.execute(
+            for (
+                source_type,
+                doc_id,
+                title,
+                authors,
+                year,
+                section,
+                edition,
+                chapter,
+                venue,
+                doi,
+            ) in cur.execute(
                 "SELECT source_type, doc_id, title, authors, year, section, "
                 "edition, chapter, venue, doi "
                 "FROM question_references WHERE question_id = ? ORDER BY position",
                 (qid,),
             ).fetchall():
                 if source_type == "textbook":
-                    references.append(TextbookRef(
-                        doc_id=doc_id, title=title, authors=authors,
-                        year=year, section=section,
-                        edition=edition, chapter=chapter,
-                    ))
+                    references.append(
+                        TextbookRef(
+                            doc_id=doc_id,
+                            title=title,
+                            authors=authors,
+                            year=year,
+                            section=section,
+                            edition=edition,
+                            chapter=chapter,
+                        )
+                    )
                 else:
-                    references.append(PaperRef(
-                        doc_id=doc_id, title=title, authors=authors,
-                        year=year, section=section,
-                        venue=venue, doi=doi,
-                    ))
+                    references.append(
+                        PaperRef(
+                            doc_id=doc_id,
+                            title=title,
+                            authors=authors,
+                            year=year,
+                            section=section,
+                            venue=venue,
+                            doi=doi,
+                        )
+                    )
             history = [
                 HistoryEntry(date=date, correct=bool(correct))
                 for (date, correct) in cur.execute(

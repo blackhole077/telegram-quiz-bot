@@ -113,6 +113,7 @@ def main() -> None:
     from pathlib import Path
 
     from backend.backends import FilesystemBackend
+
     storage = FilesystemBackend(Path(args.pool), Path(args.log))
     answer_log = storage.load_answers()
     questions = storage.load_questions()

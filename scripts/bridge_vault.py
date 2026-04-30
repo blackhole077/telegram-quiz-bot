@@ -55,7 +55,7 @@ def _parse_note(path: Path, vault_root: Path) -> KGNode | None:
     if isinstance(tags, str):
         tags = [tags]
 
-    body = text[fm_match.end():]
+    body = text[fm_match.end() :]
     related = sorted(set(_WIKILINK_RE.findall(body)))
 
     return KGNode(
@@ -81,9 +81,7 @@ def bridge(vault_root: Path, output_path: Path) -> None:
         nodes.append(node)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps([node.model_dump() for node in nodes], indent=2)
-    )
+    output_path.write_text(json.dumps([node.model_dump() for node in nodes], indent=2))
     print(f"Wrote {len(nodes)} nodes to {output_path}")
     if skipped:
         print(f"Skipped (no frontmatter): {skipped}")

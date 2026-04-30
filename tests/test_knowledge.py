@@ -36,7 +36,9 @@ def _make_node(
 @pytest.fixture
 def small_graph() -> KnowledgeGraph:
     nodes = [
-        _make_node("Attention Mechanism", aliases=["Attention"], related=["Transformer"]),
+        _make_node(
+            "Attention Mechanism", aliases=["Attention"], related=["Transformer"]
+        ),
         _make_node("Transformer", related=["Attention Mechanism", "BERT"]),
         _make_node("BERT", aliases=["BERT model"], related=["Transformer"]),
         _make_node("Isolated Concept"),

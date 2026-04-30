@@ -19,6 +19,7 @@ from core.selector import select_session
 from core.storage import StorageBackend
 
 
+# NOTE: Need to see if we need to re-architect this to fit the remaining use cases
 class QuizService:
     """Coordinates SRS scheduling, session management, and answer logging.
 
@@ -32,7 +33,10 @@ class QuizService:
 
     def _load_topics(self) -> list[Topic]:
         try:
-            return [Topic.model_validate(t) for t in json.loads(self._topics_path.read_text())]
+            return [
+                Topic.model_validate(t)
+                for t in json.loads(self._topics_path.read_text())
+            ]
         except FileNotFoundError:
             return []
 
@@ -108,13 +112,17 @@ class QuizService:
         grouped: dict[str, list[str]] = {}
         for topic in self._load_topics():
             grouped.setdefault(topic.domain, []).append(topic.name)
-        named = {domain: sorted(names) for domain, names in sorted(grouped.items()) if domain}
+        named = {
+            domain: sorted(names) for domain, names in sorted(grouped.items()) if domain
+        }
         result = dict(named)
         if "" in grouped:
             result[""] = sorted(grouped[""])
         return result
 
-    def prepare_practice(self, topic: str | None = None, count: int = 10) -> list[Question]:
+    def prepare_practice(
+        self, topic: str | None = None, count: int = 10
+    ) -> list[Question]:
         """Return a random sample of questions, optionally filtered by topic.
 
         Unlike prepare_session, this makes no SRS state changes.

@@ -9,8 +9,13 @@ from __future__ import annotations
 import os
 
 from core.schemas.answer_schemas import AnswerLogEntry
-from core.schemas.question_schemas import (HistoryEntry, PaperRef, Question,
-                                           QuestionType, SourceRef)
+from core.schemas.question_schemas import (
+    HistoryEntry,
+    PaperRef,
+    Question,
+    QuestionType,
+    SourceRef,
+)
 from core.schemas.schemas import QuizSession
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")

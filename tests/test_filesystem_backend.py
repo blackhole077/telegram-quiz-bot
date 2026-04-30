@@ -64,7 +64,9 @@ class TestLoadAnswers:
         assert loaded[0].correct is False
 
     def test_loads_entries_in_order(self, backend):
-        entries = [make_log_entry(qid=f"q{i}", date=f"2026-04-{i+1:02d}") for i in range(5)]
+        entries = [
+            make_log_entry(qid=f"q{i}", date=f"2026-04-{i+1:02d}") for i in range(5)
+        ]
         for entry in entries:
             backend.append_answer(entry)
         loaded = backend.load_answers()
@@ -81,7 +83,14 @@ class TestLoadAnswers:
             backend.load_answers()
 
     def test_roundtrip_preserves_all_fields(self, backend):
-        entry = make_log_entry(qid="q42", topic="PPO", correct=False, level=3, date="2026-03-15", doc_id="DOC99")
+        entry = make_log_entry(
+            qid="q42",
+            topic="PPO",
+            correct=False,
+            level=3,
+            date="2026-03-15",
+            doc_id="DOC99",
+        )
         backend.append_answer(entry)
         loaded = backend.load_answers()[0]
         assert loaded.qid == "q42"
@@ -109,7 +118,9 @@ class TestLoadQuestions:
 
     def test_preserves_all_fields(self, backend):
         history_entry = HistoryEntry(date="2026-01-01", correct=False)
-        question = make_question(id="q99", level=3, history=[history_entry], correct="C")
+        question = make_question(
+            id="q99", level=3, history=[history_entry], correct="C"
+        )
         backend.save_questions([question])
         loaded = backend.load_questions()[0]
         assert loaded.level == 3
@@ -119,7 +130,11 @@ class TestLoadQuestions:
 
     def test_preserves_question_type(self, backend):
         for qtype in QuestionType:
-            opts = ["a", "b", "c", "d"] if qtype is QuestionType.MULTIPLE_CHOICE else ["a", "b"]
+            opts = (
+                ["a", "b", "c", "d"]
+                if qtype is QuestionType.MULTIPLE_CHOICE
+                else ["a", "b"]
+            )
             question = make_question(id="qt", qtype=qtype, options=opts)
             backend.save_questions([question])
             assert backend.load_questions()[0].type is qtype

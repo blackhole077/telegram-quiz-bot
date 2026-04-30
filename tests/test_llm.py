@@ -19,16 +19,29 @@ import openai
 import pytest
 from PIL import Image
 
-from core.llm import (OpenAIBackend, evaluate_relational_explanation,
-                      generate_bridge_question, generate_exam,
-                      generate_scaffolded_derivation,
-                      generate_wrong_transposition, grade_answer,
-                      grade_from_image, grade_from_text, grade_teach_it_back,
-                      normalize_image, override_backend)
-from core.schemas.llm_schemas import (BridgeQuestion, ExamGradeResult,
-                                      ExamProblem, GradeResult,
-                                      RelationalGradeResult,
-                                      ScaffoldedDerivation, TeachItBackResult)
+from core.llm import (
+    OpenAIBackend,
+    evaluate_relational_explanation,
+    generate_bridge_question,
+    generate_exam,
+    generate_scaffolded_derivation,
+    generate_wrong_transposition,
+    grade_answer,
+    grade_from_image,
+    grade_from_text,
+    grade_teach_it_back,
+    normalize_image,
+    override_backend,
+)
+from core.schemas.llm_schemas import (
+    BridgeQuestion,
+    ExamGradeResult,
+    ExamProblem,
+    GradeResult,
+    RelationalGradeResult,
+    ScaffoldedDerivation,
+    TeachItBackResult,
+)
 from tests.conftest import ErrorBackend, MockBackend
 
 # ---------------------------------------------------------------------------
@@ -385,11 +398,20 @@ class TestGradeTeachItBack:
     def test_model_answer_populated(self):
         mock = MockBackend(self._good_payload())
         with override_backend(mock):
-            result = grade_teach_it_back("gradient descent", "high school student", "explanation")
+            result = grade_teach_it_back(
+                "gradient descent", "high school student", "explanation"
+            )
         assert result.model_answer != ""
 
     def test_model_answer_defaults_to_empty_when_absent(self):
-        payload = json.dumps({"score": 0.8, "feedback": "ok", "missing_concepts": [], "analogy_issues": []})
+        payload = json.dumps(
+            {
+                "score": 0.8,
+                "feedback": "ok",
+                "missing_concepts": [],
+                "analogy_issues": [],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_teach_it_back("entropy", "undergrad", "explanation")
@@ -459,24 +481,30 @@ class TestGradeTeachItBack:
         assert "Shannon 1948 paper context" in mock.last_system
 
     def test_analogy_issues_bare_string_coerced_to_list(self):
-        payload = json.dumps({
-            "score": 0.6,
-            "feedback": "ok",
-            "missing_concepts": [],
-            "analogy_issues": "The analogy provided is misleading between distributions.",
-        })
+        payload = json.dumps(
+            {
+                "score": 0.6,
+                "feedback": "ok",
+                "missing_concepts": [],
+                "analogy_issues": "The analogy provided is misleading between distributions.",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_teach_it_back("entropy", "undergrad", "explanation")
-        assert result.analogy_issues == ["The analogy provided is misleading between distributions."]
+        assert result.analogy_issues == [
+            "The analogy provided is misleading between distributions."
+        ]
 
     def test_missing_concepts_bare_string_coerced_to_list(self):
-        payload = json.dumps({
-            "score": 0.5,
-            "feedback": "ok",
-            "missing_concepts": "convergence criterion",
-            "analogy_issues": [],
-        })
+        payload = json.dumps(
+            {
+                "score": 0.5,
+                "feedback": "ok",
+                "missing_concepts": "convergence criterion",
+                "analogy_issues": [],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = grade_teach_it_back("gradient descent", "undergrad", "explanation")
@@ -573,13 +601,17 @@ class TestGenerateBridgeQuestion:
     def test_returns_bridge_question_instance(self):
         mock = MockBackend(self._payload())
         with override_backend(mock):
-            result = generate_bridge_question("Attention Mechanism", "Transformer", "related")
+            result = generate_bridge_question(
+                "Attention Mechanism", "Transformer", "related"
+            )
         assert isinstance(result, BridgeQuestion)
 
     def test_question_text_populated(self):
         mock = MockBackend(self._payload("How does attention enable the Transformer?"))
         with override_backend(mock):
-            result = generate_bridge_question("Attention Mechanism", "Transformer", "related")
+            result = generate_bridge_question(
+                "Attention Mechanism", "Transformer", "related"
+            )
         assert result.question == "How does attention enable the Transformer?"
         assert result.requires_edge is True
         assert result.error == ""
@@ -608,7 +640,9 @@ class TestGenerateBridgeQuestion:
     def test_topic_material_injected_into_system_prompt(self):
         mock = MockBackend(self._payload())
         with override_backend(mock):
-            generate_bridge_question("A", "B", "related", topic_material="extra context")
+            generate_bridge_question(
+                "A", "B", "related", topic_material="extra context"
+            )
         assert "extra context" in mock.last_system
 
     def test_system_prompt_references_bridge_or_relational(self):
@@ -616,7 +650,11 @@ class TestGenerateBridgeQuestion:
         with override_backend(mock):
             generate_bridge_question("A", "B", "related")
         lower_sys = mock.last_system.lower()
-        assert "bridge" in lower_sys or "relational" in lower_sys or "connection" in lower_sys
+        assert (
+            "bridge" in lower_sys
+            or "relational" in lower_sys
+            or "connection" in lower_sys
+        )
 
     def test_invalid_json_returns_error_result(self):
         mock = MockBackend("not json")
@@ -650,7 +688,9 @@ class TestGenerateWrongTransposition:
     def test_returns_string(self):
         mock = MockBackend(self._payload("Plausible but wrong."))
         with override_backend(mock):
-            result = generate_wrong_transposition("entropy", "information theory", "thermodynamics")
+            result = generate_wrong_transposition(
+                "entropy", "information theory", "thermodynamics"
+            )
         assert isinstance(result, str)
         assert result == "Plausible but wrong."
 
@@ -665,14 +705,19 @@ class TestGenerateWrongTransposition:
     def test_topic_material_injected_into_system_prompt(self):
         mock = MockBackend(self._payload())
         with override_backend(mock):
-            generate_wrong_transposition("concept", "domain A", "domain B", topic_material="extra")
+            generate_wrong_transposition(
+                "concept", "domain A", "domain B", topic_material="extra"
+            )
         assert "extra" in mock.last_system
 
     def test_system_prompt_mentions_misconception(self):
         mock = MockBackend(self._payload())
         with override_backend(mock):
             generate_wrong_transposition("concept", "domain A", "domain B")
-        assert "misconception" in mock.last_system.lower() or "wrong" in mock.last_system.lower()
+        assert (
+            "misconception" in mock.last_system.lower()
+            or "wrong" in mock.last_system.lower()
+        )
 
     def test_invalid_json_returns_empty_string(self):
         mock = MockBackend("not json")
@@ -734,7 +779,9 @@ class TestGenerateScaffoldedDerivation:
         with override_backend(mock):
             generate_scaffolded_derivation("some derivation")
         lower_sys = mock.last_system.lower()
-        assert "load-bearing" in lower_sys or "blank" in lower_sys or "fill" in lower_sys
+        assert (
+            "load-bearing" in lower_sys or "blank" in lower_sys or "fill" in lower_sys
+        )
 
     def test_invalid_json_returns_error_result(self):
         mock = MockBackend("not json")
@@ -796,13 +843,17 @@ class TestEvaluateRelationalExplanation:
             self._payload(correct=False, score=0.5, missing=["asymmetry of penalty"])
         )
         with override_backend(mock):
-            result = evaluate_relational_explanation("partial text", "A", "B", "related")
+            result = evaluate_relational_explanation(
+                "partial text", "A", "B", "related"
+            )
         assert result.score == 0.5
         assert "asymmetry of penalty" in result.missing_relational_claims
 
     def test_incorrect_relational_claims_captured(self):
         mock = MockBackend(
-            self._payload(correct=False, score=0.2, incorrect=["wrong claim about edge"])
+            self._payload(
+                correct=False, score=0.2, incorrect=["wrong claim about edge"]
+            )
         )
         with override_backend(mock):
             result = evaluate_relational_explanation("text", "A", "B", "related")
@@ -822,7 +873,9 @@ class TestEvaluateRelationalExplanation:
     def test_topic_material_injected_into_system_prompt(self):
         mock = MockBackend(self._payload())
         with override_backend(mock):
-            evaluate_relational_explanation("text", "A", "B", "related", topic_material="ctx")
+            evaluate_relational_explanation(
+                "text", "A", "B", "related", topic_material="ctx"
+            )
         assert "ctx" in mock.last_system
 
     def test_system_prompt_stresses_relational_distinction(self):
@@ -830,7 +883,11 @@ class TestEvaluateRelationalExplanation:
         with override_backend(mock):
             evaluate_relational_explanation("text", "A", "B", "related")
         lower_sys = mock.last_system.lower()
-        assert "relational" in lower_sys or "connection" in lower_sys or "relationship" in lower_sys
+        assert (
+            "relational" in lower_sys
+            or "connection" in lower_sys
+            or "relationship" in lower_sys
+        )
 
     def test_invalid_json_returns_error_result(self):
         mock = MockBackend("not json")
@@ -846,38 +903,53 @@ class TestEvaluateRelationalExplanation:
         assert result.error != ""
 
     def test_model_answer_populated(self):
-        mock = MockBackend(self._payload(model_answer="A strong answer would explain X via Y."))
+        mock = MockBackend(
+            self._payload(model_answer="A strong answer would explain X via Y.")
+        )
         with override_backend(mock):
             result = evaluate_relational_explanation("text", "A", "B", "related")
         assert result.model_answer == "A strong answer would explain X via Y."
 
     def test_model_answer_defaults_to_empty_when_absent(self):
-        payload = json.dumps({
-            "correct": True, "score": 1.0, "feedback": "ok",
-            "missing_relational_claims": [], "incorrect_relational_claims": [],
-        })
+        payload = json.dumps(
+            {
+                "correct": True,
+                "score": 1.0,
+                "feedback": "ok",
+                "missing_relational_claims": [],
+                "incorrect_relational_claims": [],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = evaluate_relational_explanation("text", "A", "B", "related")
         assert result.model_answer == ""
 
     def test_missing_relational_claims_bare_string_coerced_to_list(self):
-        payload = json.dumps({
-            "correct": False, "score": 0.4, "feedback": "ok",
-            "missing_relational_claims": "asymmetry of the penalty term",
-            "incorrect_relational_claims": [],
-        })
+        payload = json.dumps(
+            {
+                "correct": False,
+                "score": 0.4,
+                "feedback": "ok",
+                "missing_relational_claims": "asymmetry of the penalty term",
+                "incorrect_relational_claims": [],
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = evaluate_relational_explanation("text", "A", "B", "related")
         assert result.missing_relational_claims == ["asymmetry of the penalty term"]
 
     def test_incorrect_relational_claims_bare_string_coerced_to_list(self):
-        payload = json.dumps({
-            "correct": False, "score": 0.3, "feedback": "ok",
-            "missing_relational_claims": [],
-            "incorrect_relational_claims": "the penalty is symmetric",
-        })
+        payload = json.dumps(
+            {
+                "correct": False,
+                "score": 0.3,
+                "feedback": "ok",
+                "missing_relational_claims": [],
+                "incorrect_relational_claims": "the penalty is symmetric",
+            }
+        )
         mock = MockBackend(payload)
         with override_backend(mock):
             result = evaluate_relational_explanation("text", "A", "B", "related")

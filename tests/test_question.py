@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from core.question import (fmt_feedback, fmt_question, input_hint, labels,
-                           merge_questions, normalise_answer, shuffle_answers)
+from core.question import (
+    fmt_feedback,
+    fmt_question,
+    input_hint,
+    labels,
+    merge_questions,
+    normalise_answer,
+    shuffle_answers,
+)
 from core.schemas.question_schemas import QuestionType
 from tests.conftest import make_question
 

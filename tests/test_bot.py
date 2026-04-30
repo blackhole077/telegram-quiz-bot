@@ -15,19 +15,37 @@ from telegram.ext import ConversationHandler
 
 # conftest.py sets TELEGRAM_BOT_TOKEN and ALLOWED_USER_ID before this import.
 import bot.bot as bot_module
-from bot.bot import (AWAITING_ANSWER, AWAITING_EXAM_ANSWER,
-                     AWAITING_PRACTICE_ANSWER, _auth, cmd_cancel, cmd_exam,
-                     cmd_practice, cmd_stats, generate_and_start_quiz,
-                     handle_answer, handle_exam_submission,
-                     handle_practice_answer)
+from bot.bot import (
+    AWAITING_ANSWER,
+    AWAITING_EXAM_ANSWER,
+    AWAITING_PRACTICE_ANSWER,
+    _auth,
+    cmd_cancel,
+    cmd_exam,
+    cmd_practice,
+    cmd_stats,
+    generate_and_start_quiz,
+    handle_answer,
+    handle_exam_submission,
+    handle_practice_answer,
+)
 from core.schemas.answer_schemas import AnswerOutcome
-from core.schemas.llm_schemas import (ExamGradeResult, ExamProblem,
-                                      GradeResult, ProblemGrade)
+from core.schemas.llm_schemas import (
+    ExamGradeResult,
+    ExamProblem,
+    GradeResult,
+    ProblemGrade,
+)
 from core.schemas.question_schemas import Problem
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
-from tests.conftest import (ALLOWED_USER_ID, make_context, make_question,
-                            make_session, make_update)
+from tests.conftest import (
+    ALLOWED_USER_ID,
+    make_context,
+    make_question,
+    make_session,
+    make_update,
+)
 
 
 def make_problem(

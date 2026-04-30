@@ -6,6 +6,7 @@ from core.schemas.schemas import QuizSession
 
 class QuizState(BaseModel):
     session: QuizSession | None = None
+    # TODO: Make this another Pydantic schema
     wrong_answers: list[dict] = Field(default_factory=list)
 
 

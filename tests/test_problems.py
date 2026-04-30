@@ -61,6 +61,7 @@ def problems():
 # load_problems
 # ---------------------------------------------------------------------------
 
+
 class TestLoadProblems:
     def test_returns_list_of_problems(self, problems_file):
         result = load_problems(problems_file)
@@ -87,6 +88,7 @@ class TestLoadProblems:
 # filter_by_topic
 # ---------------------------------------------------------------------------
 
+
 class TestFilterByTopic:
     def test_exact_match(self, problems):
         result = filter_by_topic(problems, "Probability")
@@ -109,6 +111,7 @@ class TestFilterByTopic:
 # ---------------------------------------------------------------------------
 # pick_random
 # ---------------------------------------------------------------------------
+
 
 class TestPickRandom:
     def test_returns_one_by_default(self, problems):
