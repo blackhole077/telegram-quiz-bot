@@ -5,3 +5,6 @@ __pycache__/
 bot/.env
 .env
 .claude/
+.mypy_cache
+.pytest_cache
+.ruff_cache
