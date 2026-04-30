@@ -13,22 +13,14 @@ from core.question import clean_option, labels, normalise_answer
 from core.schemas.question_schemas import QuestionType
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
-
-_WEB_ROOT = Path(__file__).parent.parent
+from web.constants import TEMPLATES
+from web.schemas.schema import PracticeState
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-
-@dataclass
-class _PracticeState:
-    session: QuizSession | None = None
-    wrong_answers: list[dict] = field(default_factory=list)
-
-
-_state = _PracticeState()
+_state = PracticeState()
 
 
 def _today() -> str:
@@ -63,7 +55,7 @@ def _question_context(session: QuizSession) -> dict:
 @router.get("/practice", response_class=HTMLResponse, tags=["practice"])
 async def practice_page(request: Request):
     topics = _service.get_topics()
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="practice_config.html",
         context={"topics": topics},
@@ -78,10 +70,12 @@ async def practice_start(
 ):
     questions = _service.prepare_practice(topic or None, count)
     if not questions:
-        return HTMLResponse('<p class="nothing-due">No questions found for that topic.</p>')
+        return HTMLResponse(
+            '<p class="nothing-due">No questions found for that topic.</p>'
+        )
     _state.session = _service.start_session(questions)
     _state.wrong_answers = []
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(_state.session),
@@ -100,7 +94,9 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
     if normalised is None:
         ctx = _question_context(_state.session)
         ctx["error"] = "Please select a valid option."
-        return templates.TemplateResponse(request=request, name="question.html", context=ctx)
+        return TEMPLATES.TemplateResponse(
+            request=request, name="question.html", context=ctx
+        )
 
     correct = normalised == question.correct.upper()
     if correct:
@@ -114,17 +110,19 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
         correct_text = clean_option(question.options[idx])
 
     if not correct:
-        _state.wrong_answers.append({
-            "question_text": question.question,
-            "correct_label": question.correct,
-            "correct_text": correct_text,
-            "explanation": question.explanation,
-        })
+        _state.wrong_answers.append(
+            {
+                "question_text": question.question,
+                "correct_label": question.correct,
+                "correct_text": correct_text,
+                "explanation": question.explanation,
+            }
+        )
 
     ref = question.references[0] if question.references else None
     is_last = _state.session.is_complete
 
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="feedback.html",
         context={
@@ -153,13 +151,13 @@ async def practice_next(request: Request):
         wrong = list(_state.wrong_answers)
         _state.session = None
         _state.wrong_answers.clear()
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="practice_summary.html",
             context={"score": score, "total": total, "wrong_answers": wrong},
         )
 
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(_state.session),

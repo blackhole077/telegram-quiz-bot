@@ -13,26 +13,12 @@ from core.llm import (evaluate_relational_explanation,
                       generate_bridge_question, generate_scaffolded_derivation,
                       generate_wrong_transposition, grade_answer,
                       grade_teach_it_back)
-
-_WEB_ROOT = Path(__file__).parent.parent
+from web.constants import TEMPLATES
+from web.schemas.schema import LearnState
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
-
-@dataclass
-class _LearnState:
-    exercise_type: str = ""
-    concept_a: str = ""
-    concept_b: str = ""
-    edge_type: str = ""
-    domain_b: str = ""
-    audience: str = ""
-    generated_content: str = ""
-    solution_steps: list[str] = field(default_factory=list)
-
-
-_state = _LearnState()
+_state = LearnState()
 
 
 def _node_names() -> list[str]:
@@ -41,7 +27,7 @@ def _node_names() -> list[str]:
 
 @router.get("/learn", response_class=HTMLResponse, tags=["learn"])
 async def learn_page(request: Request):
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="learn_config.html",
         context={"node_names": _node_names()},
@@ -97,10 +83,12 @@ async def learn_start(
             topic_material,
         )
         if result.error:
-            return HTMLResponse('<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>')
+            return HTMLResponse(
+                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            )
         _state.generated_content = result.question
 
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
@@ -117,11 +105,13 @@ async def learn_start(
             generate_wrong_transposition, concept_a, domain_a, domain_b, topic_material
         )
         if not result_text:
-            return HTMLResponse('<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>')
+            return HTMLResponse(
+                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            )
         _state.generated_content = result_text
         _state.edge_type = domain_a
 
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
@@ -138,12 +128,14 @@ async def learn_start(
             generate_scaffolded_derivation, source_text, topic_material
         )
         if result.error or not result.prompt:
-            return HTMLResponse('<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>')
+            return HTMLResponse(
+                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            )
         _state.generated_content = result.prompt
         _state.solution_steps = result.solution_steps
 
         blank_count = result.prompt.count("[...]")
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
@@ -155,7 +147,7 @@ async def learn_start(
         )
 
     if exercise_type == "teach":
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
@@ -189,7 +181,7 @@ async def learn_submit(
             _state.concept_b,
             _state.edge_type,
         )
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
             context={
@@ -214,7 +206,7 @@ async def learn_submit(
             f"{_state.generated_content}"
         )
         result = await asyncio.to_thread(grade_answer, problem_prompt, "", answer)
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
             context={
@@ -238,7 +230,7 @@ async def learn_submit(
         result = await asyncio.to_thread(
             grade_answer, _state.generated_content, solution_text, answer
         )
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
             context={
@@ -266,7 +258,7 @@ async def learn_submit(
             answer,
             topic_material,
         )
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
             context={

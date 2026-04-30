@@ -13,37 +13,33 @@ from core.latex import normalise_latex
 from core.llm import generate_exam, grade_from_text
 from core.schemas.llm_schemas import ExamProblem
 from core.service import QuizService
-
-_WEB_ROOT = Path(__file__).parent.parent
+from web.constants import TEMPLATES
+from web.schemas.schema import ExamState
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-
-@dataclass
-class _ExamState:
-    problems: list[ExamProblem] = field(default_factory=list)
-    category: str = ""
-
-
-_state = _ExamState()
+_state = ExamState()
 
 
 def _normalise_problems(problems: list[ExamProblem]) -> list[ExamProblem]:
     return [
-        problem.model_copy(update={
-            "prompt": normalise_latex(problem.prompt),
-            "solution": normalise_latex(problem.solution),
-        })
+        problem.model_copy(
+            update={
+                "prompt": normalise_latex(problem.prompt),
+                "solution": normalise_latex(problem.solution),
+            }
+        )
         for problem in problems
     ]
 
 
 @router.get("/exam", response_class=HTMLResponse, tags=["exam"])
 async def exam_page(request: Request):
-    return templates.TemplateResponse(request=request, name="exam_config.html", context={})
+    return TEMPLATES.TemplateResponse(
+        request=request, name="exam_config.html", context={}
+    )
 
 
 @router.post("/exam/start", response_class=HTMLResponse, tags=["exam"])
@@ -60,7 +56,7 @@ async def exam_start(
         )
     _state.problems = _normalise_problems(problems)
     _state.category = category
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="exam_form.html",
         context={"problems": _state.problems},
@@ -78,10 +74,14 @@ async def exam_submit(request: Request, answer: Annotated[list[str], Form()]):
     result = await asyncio.to_thread(grade_from_text, _state.problems, answer_text)
 
     normalised_grades = [
-        {"number": grade.number, "score": grade.score, "feedback": normalise_latex(grade.feedback)}
+        {
+            "number": grade.number,
+            "score": grade.score,
+            "feedback": normalise_latex(grade.feedback),
+        }
         for grade in result.problems
     ]
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="exam_results.html",
         context={

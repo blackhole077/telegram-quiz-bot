@@ -13,23 +13,14 @@ from core.question import clean_option, labels
 from core.schemas.question_schemas import QuestionType
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
-
-_WEB_ROOT = Path(__file__).parent.parent
+from web.constants import TEMPLATES
+from web.schemas.schema import QuizState
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_WEB_ROOT / "templates"))
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-
-# NOTE: Don't use Dataclass where Pydantic could be used, for consistency.
-@dataclass
-class _QuizState:
-    session: QuizSession | None = None
-    wrong_answers: list[dict] = field(default_factory=list)
-
-
-_state = _QuizState()
+_state = QuizState()
 
 
 def _today() -> str:
@@ -66,7 +57,7 @@ def _question_context(session: QuizSession) -> dict:
 @router.get("/quiz", response_class=HTMLResponse, tags=["quiz"])
 async def quiz_page(request: Request):
     total, due = _service.get_stats(_today())
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="quiz.html",
         context={"total": total, "due": due},
@@ -82,7 +73,7 @@ async def quiz_start(request: Request):
         )
     _state.session = _service.start_session(due)
     _state.wrong_answers = []
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(_state.session),
@@ -100,7 +91,7 @@ async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
     if outcome is None:
         ctx = _question_context(_state.session)
         ctx["error"] = "Please select a valid option (A, B, C, or D)."
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request, name="question.html", context=ctx
         )
 
@@ -124,7 +115,7 @@ async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
     ref = question.references[0] if question.references else None
     is_last = _state.session.is_complete
 
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="feedback.html",
         context={
@@ -156,7 +147,7 @@ async def quiz_next(request: Request):
         _state.session = None
         _state.wrong_answers.clear()
         total_questions, new_due = _service.get_stats(_today())
-        return templates.TemplateResponse(
+        return TEMPLATES.TemplateResponse(
             request=request,
             name="summary.html",
             context={
@@ -168,7 +159,7 @@ async def quiz_next(request: Request):
             },
         )
 
-    return templates.TemplateResponse(
+    return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(_state.session),
