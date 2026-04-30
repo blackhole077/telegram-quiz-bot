@@ -234,4 +234,4 @@ class TestDifficultQuestions:
         assert dq.related_material == []
 
     def test_empty_report_has_empty_difficult_questions(self):
-        assert analyze_gaps([], []).difficult_questions == []
+        assert not analyze_gaps([], []).difficult_questions

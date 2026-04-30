@@ -1,18 +1,19 @@
 import asyncio
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
+from core.exam import normalise_latex
 from core.knowledge import get_knowledge_graph
-from core.latex import normalise_latex
-from core.llm import (evaluate_relational_explanation,
-                      generate_bridge_question, generate_scaffolded_derivation,
-                      generate_wrong_transposition, grade_answer,
-                      grade_teach_it_back)
+from core.llm import (
+    evaluate_relational_explanation,
+    generate_bridge_question,
+    generate_scaffolded_derivation,
+    generate_wrong_transposition,
+    grade_answer,
+    grade_teach_it_back,
+)
 from web.constants import TEMPLATES
 from web.schemas.schema import LearnState
 

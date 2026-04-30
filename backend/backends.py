@@ -12,7 +12,6 @@ from core.schemas.question_schemas import (
     PaperRef,
     Question,
     QuestionType,
-    Reference,
     TextbookRef,
 )
 from core.storage import StorageBackend

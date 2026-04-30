@@ -1,15 +1,12 @@
 import asyncio
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from backend.backends import make_backend
 from core.config import settings
-from core.latex import normalise_latex
+from core.exam import normalise_latex
 from core.llm import generate_exam, grade_from_text
 from core.schemas.llm_schemas import ExamProblem
 from core.service import QuizService

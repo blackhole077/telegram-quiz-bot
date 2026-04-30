@@ -66,7 +66,9 @@ class KnowledgeGraph:
         for related_name in node.related:
             related_canonical = self._canonical(related_name) or related_name
             if related_canonical == canonical_b or related_name == node_b:
-                return Edge(source=canonical_a, target=related_name, edge_type=EDGE_TYPE_RELATED)
+                return Edge(
+                    source=canonical_a, target=related_name, edge_type=EDGE_TYPE_RELATED
+                )
         return None
 
     def all_nodes(self) -> list[KGNode]:
@@ -80,17 +82,17 @@ class KnowledgeGraph:
     # ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, path: Path = _DEFAULT_PATH) -> "KnowledgeGraph":
+    def load(cls, path: Path = _DEFAULT_PATH) -> KnowledgeGraph:
         nodes = [KGNode.model_validate(entry) for entry in json.loads(path.read_text())]
         return cls(nodes)
 
 
-_graph: KnowledgeGraph | None = None
+_graph: KnowledgeGraph | None = None  # pylint: disable=invalid-name
 
 
 def get_knowledge_graph(path: Path = _DEFAULT_PATH) -> KnowledgeGraph:
     """Return the module-level KnowledgeGraph, loading once on first call."""
-    global _graph
+    global _graph  # pylint: disable=global-statement
     if _graph is None:
         _graph = KnowledgeGraph.load(path)
     return _graph

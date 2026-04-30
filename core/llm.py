@@ -17,6 +17,8 @@ import io
 import json
 import logging
 from collections import defaultdict
+from collections.abc import Callable
+from typing import Any
 
 import openai
 from PIL import Image
@@ -60,6 +62,11 @@ def _load_schema(name: str) -> str:
     return (LLM_ROOT / "schemas" / f"{name}.json").read_text().strip()
 
 
+def _load_rubric(name: str) -> str:
+    path = LLM_ROOT / "prompts" / "rubrics" / f"{name}.md"
+    return path.read_text() if path.exists() else ""
+
+
 def _render(template: str, **kwargs: str) -> str:
     return template.format_map(defaultdict(str, **kwargs))
 
@@ -85,6 +92,12 @@ _USR_BRIDGE_QUESTION = _load_prompt("user/bridge_question.md")
 _USR_WRONG_TRANSPOSITION = _load_prompt("user/wrong_transposition.md")
 _USR_SCAFFOLDED_DERIVATION = _load_prompt("user/scaffolded_derivation.md")
 _USR_RELATIONAL_GRADER = _load_prompt("user/relational_grader.md")
+
+# Rubrics (injected into grader system prompts for model-agnostic consistency)
+_RUB_GRADE = _load_rubric("grader")
+_RUB_RELATIONAL = _load_rubric("relational_grader")
+_RUB_TEACH_IT_BACK = _load_rubric("teach_it_back")
+_RUB_EXAM_GRADE = _load_rubric("exam_grader")
 
 # Response schemas (injected verbatim into system prompts)
 _SCH_GRADE = _load_schema("grade_result")
@@ -183,7 +196,7 @@ _backend: LLMBackend = OpenAIBackend()
 @contextlib.contextmanager
 def override_backend(backend: LLMBackend):  # type: ignore[return]
     """Swap the module-level backend for the duration of a with-block (for tests)."""
-    global _backend
+    global _backend  # pylint: disable=global-statement
     original = _backend
     _backend = backend
     try:
@@ -201,6 +214,31 @@ def _material_block(topic_material: str) -> str:
     return (
         f"\n\nRelevant background material:\n{topic_material}" if topic_material else ""
     )
+
+
+_CONSISTENCY_THRESHOLD = 0.5
+_CONSISTENCY_MAX_DRIFT = 0.2
+
+
+def _consistent_grade(system: str, user: str, parse: Callable[[str], Any]) -> Any:
+    """Grade once; re-grade borderline results and take the lower on disagreement.
+
+    If the two scores differ by more than _CONSISTENCY_MAX_DRIFT, logs a warning
+    and returns the stricter result. This keeps grades stable across model runs.
+    """
+    result = parse(_backend.chat(system, user))
+    score = getattr(result, "score", None)
+    if score is not None and score < _CONSISTENCY_THRESHOLD:
+        result2 = parse(_backend.chat(system, user))
+        score2 = getattr(result2, "score", None)
+        if score2 is not None and abs(score - score2) > _CONSISTENCY_MAX_DRIFT:
+            logger.warning(
+                "grading inconsistency detected: %.2f vs %.2f - using lower score",
+                score,
+                score2,
+            )
+            return result if score <= score2 else result2
+    return result
 
 
 def _problems_block(exam_problems: list[ExamProblem]) -> str:
@@ -223,7 +261,10 @@ def grade_answer(
 ) -> GradeResult:
     """Grade a single free-text practice answer."""
     system = _render(
-        _SYS_GRADER, schema=_SCH_GRADE, topic_material=_material_block(topic_material)
+        _SYS_GRADER,
+        schema=_SCH_GRADE,
+        rubric=_RUB_GRADE,
+        topic_material=_material_block(topic_material),
     )
     user = _render(
         _USR_GRADER,
@@ -231,8 +272,12 @@ def grade_answer(
         solution_steps=solution_steps,
         user_answer=user_answer,
     )
+
+    def _parse(raw: str) -> GradeResult:
+        return GradeResult.model_validate(json.loads(raw))
+
     try:
-        return GradeResult.model_validate(json.loads(_backend.chat(system, user)))
+        return _consistent_grade(system, user, _parse)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_answer failed: %s", exc)
         return GradeResult(
@@ -283,6 +328,7 @@ def _exam_grader_system(topic_material: str) -> str:
     return _render(
         _SYS_EXAM_GRADER,
         schema=_SCH_EXAM_GRADE,
+        rubric=_RUB_EXAM_GRADE,
         topic_material=_material_block(topic_material),
     )
 
@@ -345,6 +391,7 @@ def grade_teach_it_back(
     system = _render(
         _SYS_TEACH_IT_BACK,
         schema=_SCH_TEACH_IT_BACK,
+        rubric=_RUB_TEACH_IT_BACK,
         topic_material=_material_block(topic_material),
     )
     user = _render(
@@ -353,8 +400,12 @@ def grade_teach_it_back(
         audience=audience,
         user_explanation=user_explanation,
     )
+
+    def _parse(raw: str) -> TeachItBackResult:
+        return TeachItBackResult.model_validate(json.loads(raw))
+
     try:
-        return TeachItBackResult.model_validate(json.loads(_backend.chat(system, user)))
+        return _consistent_grade(system, user, _parse)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_teach_it_back failed: %s", exc)
         return TeachItBackResult(
@@ -458,6 +509,7 @@ def evaluate_relational_explanation(
     system = _render(
         _SYS_RELATIONAL_GRADER,
         schema=_SCH_RELATIONAL_GRADE,
+        rubric=_RUB_RELATIONAL,
         topic_material=_material_block(topic_material),
     )
     user = _render(
@@ -467,10 +519,12 @@ def evaluate_relational_explanation(
         edge_type=edge_type,
         user_text=user_text,
     )
+
+    def _parse(raw: str) -> RelationalGradeResult:
+        return RelationalGradeResult.model_validate(json.loads(raw))
+
     try:
-        return RelationalGradeResult.model_validate(
-            json.loads(_backend.chat(system, user))
-        )
+        return _consistent_grade(system, user, _parse)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("evaluate_relational_explanation failed: %s", exc)
         return RelationalGradeResult(

@@ -102,7 +102,7 @@ class TestAuth:
             wrapped = _auth(fake_handler)
             result = await wrapped(update, context)
 
-        assert called == []
+        assert not called
         assert result == ConversationHandler.END
 
     @pytest.mark.asyncio
@@ -232,7 +232,7 @@ class TestHandleAnswer:
 
     @pytest.mark.asyncio
     async def test_invalid_answer_reprompts_and_stays_in_state(self):
-        q, context = self._setup()
+        _q, context = self._setup()
         self.mock_service.process_answer.return_value = None
         update = make_update(text="Z")
         result = await handle_answer(update, context)
@@ -240,7 +240,7 @@ class TestHandleAnswer:
 
     @pytest.mark.asyncio
     async def test_invalid_answer_does_not_call_end_session(self):
-        q, context = self._setup()
+        _q, context = self._setup()
         self.mock_service.process_answer.return_value = None
         update = make_update(text="Z")
         await handle_answer(update, context)
@@ -310,7 +310,7 @@ class TestHandleAnswer:
     @pytest.mark.asyncio
     async def test_last_question_sends_summary(self):
         q, context = self._setup()
-        session: QuizSession = context.user_data["session"]
+        _session: QuizSession = context.user_data["session"]
 
         def complete_session(s, text, today):
             s.score += 1

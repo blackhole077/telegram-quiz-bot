@@ -45,7 +45,7 @@ class TestQuestionModel:
     def test_defaults(self):
         q = make_question()
         assert q.level == 1
-        assert q.history == []
+        assert not q.history
 
     def test_history_entry_appended(self):
         entry = HistoryEntry(date="2026-01-01", correct=True)

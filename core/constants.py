@@ -36,3 +36,22 @@ ESCAPE_MAP = {
     "~": r"\textasciitilde{}",
     "^": r"\textasciicircum{}",
 }
+
+# When a LLM emits LaTeX inside JSON without double-escaping backslashes,
+# json.loads silently converts \b→backspace, \f→form feed, \r→CR, \t→tab.
+# These are the LaTeX commands most commonly affected.
+CONTROL_REPAIRS = str.maketrans(
+    {
+        "\x08": "\\b",  # \boldsymbol, \beta, \bar, \binom ...
+        "\x0c": "\\f",  # \frac, \forall, \phi ...
+        "\r": "\\r",  # \rho, \rightarrow, \rm ...
+        "\t": "\\t",  # \theta, \tau, \times, \text ...
+    }
+)
+# \n is intentionally excluded: real newlines are valid in problem text.
+
+# Matches pmatrix, bmatrix, Bmatrix, vmatrix, Vmatrix, matrix, and * variants.
+MATRIX_ENV_RE = re.compile(
+    r"(\\begin\{[pbBvV]?matrix\*?\})(.*?)(\\end\{[pbBvV]?matrix\*?\})",
+    re.DOTALL,
+)

@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
-from core.constants import (ESCAPE_MAP, PLACEHOLDER_DATE, PLACEHOLDER_TITLE,
-                            REMEDIAL_TEMPLATE_SRC, TECTONIC, TEMPLATE_SRC)
+from core.constants import (
+    CONTROL_REPAIRS,
+    ESCAPE_MAP,
+    MATRIX_ENV_RE,
+    PLACEHOLDER_DATE,
+    PLACEHOLDER_TITLE,
+    REMEDIAL_TEMPLATE_SRC,
+    TECTONIC,
+    TEMPLATE_SRC,
+)
 from core.schemas.llm_schemas import ExamProblem
 
 
@@ -63,6 +72,7 @@ def render_exam_pdf(problems: list[ExamProblem], category: str, date: str) -> by
             cwd=tmp,
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -70,3 +80,26 @@ def render_exam_pdf(problems: list[ExamProblem], category: str, date: str) -> by
             )
 
         return (tmp_path / "main.pdf").read_bytes()
+
+
+def _fix_matrix_row_seps(match: re.Match) -> str:
+    """Double single-backslash row separators inside a matrix environment.
+
+    The LLM often writes \\\\ in JSON for the LaTeX row separator \\, which
+    json.loads reduces to a single \\. This restores it to \\\\ so KaTeX can
+    parse it. LaTeX commands (\\alpha, \\frac, etc.) are unaffected because
+    they are followed by letters, not whitespace.
+    """
+    body = match.group(2)
+    # Match \ followed by whitespace, but not \\ (already doubled).
+    body = re.sub(r"(?<!\\)\\(?=\s)", r"\\\\", body)
+    return match.group(1) + body + match.group(3)
+
+
+def normalise_latex(text: str) -> str:
+    """Fix JSON-escape corruption and convert $...$ delimiters to KaTeX \\(...\\) form."""
+    text = text.translate(CONTROL_REPAIRS)
+    text = re.sub(r"\$\$(.+?)\$\$", r"\\[\1\\]", text, flags=re.DOTALL)
+    text = re.sub(r"\$(.+?)\$", r"\\(\1\\)", text, flags=re.DOTALL)
+    text = MATRIX_ENV_RE.sub(_fix_matrix_row_seps, text)
+    return text

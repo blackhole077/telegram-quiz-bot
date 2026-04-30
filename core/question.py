@@ -137,7 +137,7 @@ def merge_questions(existing: list[Question], new: list[Question]) -> list[Quest
 
 
 def load_problems(path: str | Path) -> list[Problem]:
-    data = json.loads(Path(path).read_text())
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
     return [Problem.model_validate(item) for item in data]
 
 

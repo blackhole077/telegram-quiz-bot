@@ -57,7 +57,7 @@ class TestAdvance:
         q = make_question(level=1, history=[])
         advance(q, today=TODAY)
         assert q.level == 1
-        assert q.history == []
+        assert not q.history
 
     def test_uses_todays_date_when_none(self):
         q = make_question(level=1)

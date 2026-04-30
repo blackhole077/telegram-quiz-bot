@@ -75,7 +75,7 @@ def _auth(func: _Handler) -> _Handler:
             return ConversationHandler.END
         try:
             return await func(update, context)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("Handler %s raised", func.__name__)
             if update.message:
                 await update.message.reply_text("An error occurred. Please try again.")

@@ -22,10 +22,14 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "black>=26.3.1",
+    "isort>=5.13",
     "mypy>=1.20.0",
+    "pre-commit>=4.0",
+    "pylint>=3.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.12",
+    "ruff>=0.11",
 ]
 
 [tool.mypy]
@@ -34,6 +38,56 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
+[tool.pylint.main]
+jobs = 0
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    # pytest fixture patterns
+    "redefined-outer-name",
+    "unused-argument",
+    # accessing private members in tests is acceptable
+    "protected-access",
+    # env vars must be set before module imports in test files; Pydantic
+    # generates attributes dynamically so no-member fires on model instances
+    "wrong-import-position",
+    "import-outside-toplevel",
+    "wrong-import-order",
+    "no-member",
+    # FastAPI route handlers legitimately exceed these thresholds
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "too-many-return-statements",
+    # black owns line length; pylint's check is redundant
+    "line-too-long",
+    # setUp() is the standard unittest pattern for test class setup
+    "attribute-defined-outside-init",
+    # isort owns import grouping/ordering; pylint's checks are redundant
+    "ungrouped-imports",
+    # blocks legitimate TODO/FIXME annotations in code
+    "fixme",
+    # `id` as a variable name in test helpers and fixtures is conventional
+    "redefined-builtin",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["core", "backend", "bot", "web"]
