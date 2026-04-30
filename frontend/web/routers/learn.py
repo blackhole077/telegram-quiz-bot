@@ -14,8 +14,8 @@ from core.llm import (
     grade_answer,
     grade_teach_it_back,
 )
-from web.constants import TEMPLATES
-from web.schemas.schema import LearnState
+from frontend.web.constants import TEMPLATES
+from frontend.web.schemas.schema import LearnState
 
 router = APIRouter()
 

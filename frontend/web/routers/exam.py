@@ -10,8 +10,8 @@ from core.exam import normalise_latex
 from core.llm import generate_exam, grade_from_text
 from core.schemas.llm_schemas import ExamProblem
 from core.service import QuizService
-from web.constants import TEMPLATES
-from web.schemas.schema import ExamState
+from frontend.web.constants import TEMPLATES
+from frontend.web.schemas.schema import ExamState
 
 router = APIRouter()
 

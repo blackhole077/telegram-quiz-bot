@@ -10,8 +10,8 @@ from core.question import clean_option, labels, normalise_answer
 from core.schemas.question_schemas import QuestionType
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
-from web.constants import TEMPLATES
-from web.schemas.schema import PracticeState
+from frontend.web.constants import TEMPLATES
+from frontend.web.schemas.schema import PracticeState
 
 router = APIRouter()
 

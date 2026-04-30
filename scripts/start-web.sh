@@ -1,0 +1,1 @@
+python -m uvicorn frontend.web.main:app --reload

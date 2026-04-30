@@ -22,7 +22,6 @@ from telegram.ext import (
 )
 
 from backend import make_backend
-from bot.config import bot_settings
 from core.exam import render_exam_pdf
 from core.llm import generate_exam, grade_answer, grade_from_image, grade_from_text
 from core.question import (
@@ -35,6 +34,7 @@ from core.question import (
 )
 from core.schemas.schemas import QuizSession
 from core.service import QuizService
+from frontend.telegram_bot.config import bot_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
