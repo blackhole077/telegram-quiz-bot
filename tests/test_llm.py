@@ -224,10 +224,12 @@ class TestGradeAnswer:
 class TestGenerateExam:
     def test_returns_exam_problems(self):
         payload = json.dumps(
-            [
-                {"number": 1, "prompt": "Prove X", "solution": "Because Y"},
-                {"number": 2, "prompt": "Solve Z", "solution": "Z=3"},
-            ]
+            {
+                "problems": [
+                    {"number": 1, "prompt": "Prove X", "solution": "Because Y"},
+                    {"number": 2, "prompt": "Solve Z", "solution": "Z=3"},
+                ]
+            }
         )
         mock = MockBackend(payload)
         with override_backend(mock):
@@ -272,6 +274,69 @@ class TestGenerateExam:
         with override_backend(ErrorBackend(openai.OpenAIError("err"))):
             problems = generate_exam("Math", 3, [])
         assert problems == []
+
+    def test_multiple_problems_all_returned(self):
+        items = [
+            {"number": idx, "prompt": f"q{idx}", "solution": f"s{idx}"}
+            for idx in range(1, 6)
+        ]
+        payload = json.dumps({"problems": items})
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 5, [])
+        assert len(problems) == 5
+
+    def test_bare_list_format_still_works(self):
+        payload = json.dumps([{"number": 1, "prompt": "p", "solution": "s"}])
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 1, [])
+        assert len(problems) >= 1
+
+    def test_single_bare_object_still_works(self):
+        payload = json.dumps({"number": 1, "prompt": "p", "solution": "s"})
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 1, [])
+        assert len(problems) == 1
+
+    def test_malformed_item_skipped_rest_returned(self):
+        payload = json.dumps(
+            {
+                "problems": [
+                    {"number": 1, "prompt": "good", "solution": "ok"},
+                    {"number": "not-an-int", "prompt": 99, "solution": None},
+                    {"number": 2, "prompt": "also good", "solution": "fine"},
+                ]
+            }
+        )
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 3, [])
+        assert len(problems) == 2
+        assert problems[0].number == 1
+        assert problems[1].number == 2
+
+    def test_topic_field_populated_from_schema(self):
+        payload = json.dumps(
+            {
+                "problems": [
+                    {
+                        "number": 1,
+                        "topic": "Eigenvalues",
+                        "prompt": "p",
+                        "solution": "s",
+                    }
+                ]
+            }
+        )
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 1, [])
+        assert problems[0].topic == "Eigenvalues"
+
+    def test_topic_defaults_to_empty_string_when_absent(self):
+        payload = json.dumps(
+            {"problems": [{"number": 1, "prompt": "p", "solution": "s"}]}
+        )
+        with override_backend(MockBackend(payload)):
+            problems = generate_exam("Math", 1, [])
+        assert problems[0].topic == ""
 
 
 # ---------------------------------------------------------------------------

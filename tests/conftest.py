@@ -160,7 +160,7 @@ class MockBackend:
         self.last_image_bytes: bytes | None = None
         self.last_media_type: str = ""
 
-    def chat(self, system: str, user: str) -> str:
+    def chat(self, system: str, user: str, schema=None) -> str:
         self.last_system = system
         self.last_user = user
         self.last_image_bytes = None
@@ -186,7 +186,7 @@ class ErrorBackend:
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
 
-    def chat(self, system: str, user: str) -> str:
+    def chat(self, system: str, user: str, schema=None) -> str:
         raise self._exc
 
     def chat_with_image(

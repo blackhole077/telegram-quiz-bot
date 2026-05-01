@@ -112,6 +112,10 @@ _SCH_SCAFFOLDED_DERIVATION = _load_schema("scaffolded_derivation")
 _SCH_RELATIONAL_GRADE = _load_schema("relational_grade_result")
 
 
+class _ExamProblemsResponse(BaseModel):
+    problems: list[ExamProblem]
+
+
 # ---------------------------------------------------------------------------
 # Image normalization
 # ---------------------------------------------------------------------------
@@ -358,16 +362,37 @@ def generate_exam(
         weak_section=weak_section,
     )
     try:
-        # FLAG
-        print(f"System Prompt: {system}")
-        print(f"User Prompt: {user}")
-        raw_output = _backend.chat(system, user, ExamProblem)
-        print(raw_output)
+        raw_output = _backend.chat(system, user, _ExamProblemsResponse)
         parsed = json.loads(raw_output)
-        items: list[dict] = parsed if isinstance(parsed, list) else [parsed]
-        print(items)
-        return [ExamProblem.model_validate(item) for item in items]
-    except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
+
+        if isinstance(parsed, dict) and "problems" in parsed:
+            raw_items = parsed["problems"]
+            if not isinstance(raw_items, list):
+                logger.warning(
+                    "generate_exam: 'problems' key is not a list; got %s",
+                    type(raw_items).__name__,
+                )
+                raw_items = [raw_items]
+        elif isinstance(parsed, list):
+            logger.warning(
+                'generate_exam: LLM returned a bare array instead of {"problems": [...]}'
+            )
+            raw_items = parsed
+        else:
+            logger.warning(
+                "generate_exam: unexpected top-level type %s; treating as single item",
+                type(parsed).__name__,
+            )
+            raw_items = [parsed]
+
+        problems: list[ExamProblem] = []
+        for item in raw_items:
+            try:
+                problems.append(ExamProblem.model_validate(item))
+            except ValidationError as exc:
+                logger.warning("generate_exam: skipping malformed item: %s", exc)
+        return problems
+    except (openai.OpenAIError, json.JSONDecodeError) as exc:
         logger.error("generate_exam failed: %s", exc)
         return []
 
