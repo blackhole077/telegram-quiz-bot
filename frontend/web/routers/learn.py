@@ -5,6 +5,7 @@ This router only dispatches to service methods and renders templates.
 """
 
 import asyncio
+from collections import OrderedDict
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Query, Request, Response
@@ -18,13 +19,19 @@ from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
-_states: dict[str, LearnService] = {}
+_MAX_SESSIONS = 500
+_states: OrderedDict[str, LearnService] = OrderedDict()
 
 
-def _get_state(request: Request) -> LearnService:
-    session_id = read_session_id(request)
+def _get_state(request: Request, response: Response | None = None) -> LearnService:
+    session_id = (
+        get_session_id(request, response) if response else read_session_id(request)
+    )
     if session_id not in _states:
         _states[session_id] = LearnService()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
     return _states[session_id]
 
 
@@ -63,10 +70,7 @@ async def learn_start(
     domain_b: Annotated[str, Form()] = "",
     audience: Annotated[str, Form()] = "a fellow student",
 ):
-    session_id = get_session_id(request, response)
-    if session_id not in _states:
-        _states[session_id] = LearnService()
-    service = _states[session_id]
+    service = _get_state(request, response)
 
     if exercise_type == "connect":
         started = await asyncio.to_thread(service.start_connect, concept_a, concept_b)

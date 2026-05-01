@@ -5,32 +5,36 @@ This router only dispatches to service methods and renders templates.
 """
 
 import asyncio
+from collections import OrderedDict
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
-from backend.backends import make_backend
-from core.config import settings
 from core.exam import normalise_latex
 from core.exam_service import ExamService
-from core.service import QuizService
 from frontend.web.constants import TEMPLATES
+from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import ExamState
 from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
-_quiz_service = QuizService(make_backend(settings), settings.topics_path)
 _exam_service = ExamService()
 
-_states: dict[str, ExamState] = {}
+_MAX_SESSIONS = 500
+_states: OrderedDict[str, ExamState] = OrderedDict()
 
 
-def _get_state(request: Request) -> ExamState:
-    session_id = read_session_id(request)
+def _get_state(request: Request, response: Response | None = None) -> ExamState:
+    session_id = (
+        get_session_id(request, response) if response else read_session_id(request)
+    )
     if session_id not in _states:
         _states[session_id] = ExamState()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
     return _states[session_id]
 
 
@@ -48,12 +52,9 @@ async def exam_start(
     category: Annotated[str, Form()],
     count: Annotated[int, Form()] = 5,
 ):
-    session_id = get_session_id(request, response)
-    if session_id not in _states:
-        _states[session_id] = ExamState()
-    state = _states[session_id]
+    state = _get_state(request, response)
 
-    weak_topics = _quiz_service.get_weak_topics()
+    weak_topics = quiz_service.get_weak_topics()
     problems = await asyncio.to_thread(
         _exam_service.generate, category, count, weak_topics
     )

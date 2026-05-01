@@ -1,30 +1,33 @@
+from collections import OrderedDict
 from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
-from backend.backends import make_backend
-from core.config import settings
 from core.question import clean_option, labels, normalise_answer
 from core.schemas.question_schemas import QuestionType
 from core.schemas.schemas import QuizSession
-from core.service import QuizService
 from frontend.web.constants import TEMPLATES
+from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import PracticeState
 from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
-_service = QuizService(make_backend(settings), settings.topics_path)
+_MAX_SESSIONS = 500
+_states: OrderedDict[str, PracticeState] = OrderedDict()
 
-_states: dict[str, PracticeState] = {}
 
-
-def _get_state(request: Request) -> PracticeState:
-    session_id = read_session_id(request)
+def _get_state(request: Request, response: Response | None = None) -> PracticeState:
+    session_id = (
+        get_session_id(request, response) if response else read_session_id(request)
+    )
     if session_id not in _states:
         _states[session_id] = PracticeState()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
     return _states[session_id]
 
 
@@ -59,7 +62,7 @@ def _question_context(session: QuizSession) -> dict:
 
 @router.get("/practice", response_class=HTMLResponse, tags=["practice"])
 async def practice_page(request: Request):
-    topics = _service.get_topics()
+    topics = quiz_service.get_topics()
     return TEMPLATES.TemplateResponse(
         request=request,
         name="practice_config.html",
@@ -74,17 +77,14 @@ async def practice_start(
     topic: Annotated[str, Form()] = "",
     count: Annotated[int, Form()] = 10,
 ):
-    session_id = get_session_id(request, response)
-    if session_id not in _states:
-        _states[session_id] = PracticeState()
-    state = _states[session_id]
+    state = _get_state(request, response)
 
-    questions = _service.prepare_practice(topic or None, count)
+    questions = quiz_service.prepare_practice(topic or None, count)
     if not questions:
         return HTMLResponse(
             '<p class="nothing-due">No questions found for that topic.</p>'
         )
-    state.session = _service.start_session(questions)
+    state.session = quiz_service.start_session(questions)
     state.wrong_answers = []
     return TEMPLATES.TemplateResponse(
         request=request,
