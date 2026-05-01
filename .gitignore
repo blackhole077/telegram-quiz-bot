@@ -2,6 +2,8 @@
 /data
 .claude/
 .harness/
+plans/
+docs/LEARNINGS.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
