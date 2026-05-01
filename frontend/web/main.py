@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import structlog
@@ -13,6 +13,7 @@ from .dependencies import quiz_service
 from .logging_config import configure_logging
 from .middleware import RequestLoggingMiddleware
 from .routers import exam, learn, practice, quiz
+from .session_store import session_store
 
 _WEB_ROOT = Path(__file__).parent
 
@@ -28,6 +29,11 @@ async def lifespan(app: FastAPI):
         model=settings.llm_model,
     )
     yield
+    session_store.flush_all("quiz", quiz._states, 7200)
+    session_store.flush_all("practice", practice._states, 7200)
+    session_store.flush_all("exam", exam._states, 14400)
+    session_store.flush_all("learn", learn._states, 3600)
+    session_store.cleanup(datetime.utcnow())
     logger.info("quiz-system stopping")
 
 

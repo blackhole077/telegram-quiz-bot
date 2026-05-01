@@ -2,6 +2,10 @@
 
 All exercise logic lives in core.learn_service.LearnService.
 This router only dispatches to service methods and renders templates.
+
+State is stored as LearnState (serializable). A transient LearnService is
+reconstructed from LearnState at the start of each handler and discarded
+after the response is built.
 """
 
 import asyncio
@@ -15,22 +19,51 @@ from core.exam import normalise_latex
 from core.knowledge import get_knowledge_graph
 from core.learn_service import LearnService
 from frontend.web.constants import TEMPLATES
+from frontend.web.schemas.schema import LearnState
 from frontend.web.session import get_session_id, read_session_id, set_session_cookie
+from frontend.web.session_store import session_store
 
 router = APIRouter()
 
 _MAX_SESSIONS = 500
-_states: OrderedDict[str, LearnService] = OrderedDict()
+_ROUTER = "learn"
+_TTL = 3600
+_states: OrderedDict[str, LearnState] = OrderedDict()
 
 
-def _get_state(request: Request) -> LearnService:
+def _get_state(request: Request) -> LearnState:
     session_id = read_session_id(request)
     if session_id not in _states:
-        _states[session_id] = LearnService()
+        restored = session_store.get(session_id, _ROUTER, LearnState)
+        _states[session_id] = restored if restored is not None else LearnState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
     return _states[session_id]
+
+
+def _service_from_state(state: LearnState) -> LearnService:
+    svc = LearnService()
+    svc.exercise_type = state.exercise_type
+    svc.concept_a = state.concept_a
+    svc.concept_b = state.concept_b
+    svc.edge_type = state.edge_type
+    svc.domain_b = state.domain_b
+    svc.audience = state.audience
+    svc.generated_content = state.generated_content
+    svc.solution_steps = list(state.solution_steps)
+    return svc
+
+
+def _copy_service_to_state(service: LearnService, state: LearnState) -> None:
+    state.exercise_type = service.exercise_type
+    state.concept_a = service.concept_a
+    state.concept_b = service.concept_b
+    state.edge_type = service.edge_type
+    state.domain_b = service.domain_b
+    state.audience = service.audience
+    state.generated_content = service.generated_content
+    state.solution_steps = list(service.solution_steps)
 
 
 def _node_names() -> list[str]:
@@ -69,11 +102,13 @@ async def learn_start(
 ):
     session_id, is_new = get_session_id(request)
     if session_id not in _states:
-        _states[session_id] = LearnService()
+        restored = session_store.get(session_id, _ROUTER, LearnState)
+        _states[session_id] = restored if restored is not None else LearnState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
-    service = _states[session_id]
+    state = _states[session_id]
+    service = _service_from_state(state)
 
     def _with_cookie(resp: HTMLResponse) -> HTMLResponse:
         if is_new:
@@ -88,6 +123,8 @@ async def learn_start(
                     '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
                 )
             )
+        _copy_service_to_state(service, state)
+        await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
         return _with_cookie(
             TEMPLATES.TemplateResponse(
                 request=request,
@@ -109,6 +146,8 @@ async def learn_start(
                     '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
                 )
             )
+        _copy_service_to_state(service, state)
+        await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
         return _with_cookie(
             TEMPLATES.TemplateResponse(
                 request=request,
@@ -131,6 +170,8 @@ async def learn_start(
                 )
             )
         blank_count = started.generated_content.count("[...]")
+        _copy_service_to_state(service, state)
+        await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
         return _with_cookie(
             TEMPLATES.TemplateResponse(
                 request=request,
@@ -146,6 +187,8 @@ async def learn_start(
 
     if exercise_type == "teach":
         service.start_teach(concept_a, audience)
+        _copy_service_to_state(service, state)
+        await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
         return _with_cookie(
             TEMPLATES.TemplateResponse(
                 request=request,
@@ -169,13 +212,14 @@ async def learn_submit(
     request: Request,
     answer: Annotated[str, Form()],
 ):
-    service = _get_state(request)
-    if not service.exercise_type:
+    state = _get_state(request)
+    if not state.exercise_type:
         return HTMLResponse(
             '<p class="nothing-due">No active exercise. <a href="/learn">Start over</a>.</p>'
         )
 
-    exercise_type = service.exercise_type
+    exercise_type = state.exercise_type
+    service = _service_from_state(state)
 
     if exercise_type == "connect":
         result = await asyncio.to_thread(service.grade_connect, answer)
@@ -191,8 +235,8 @@ async def learn_submit(
                 "incorrect_claims": result.incorrect_relational_claims,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": service.concept_a,
-                "concept_b": service.concept_b,
+                "concept_a": state.concept_a,
+                "concept_b": state.concept_b,
             },
         )
 
@@ -210,8 +254,8 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": service.concept_a,
-                "concept_b": service.domain_b,
+                "concept_a": state.concept_a,
+                "concept_b": state.domain_b,
             },
         )
 
@@ -229,7 +273,7 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": service.concept_a,
+                "concept_a": state.concept_a,
                 "concept_b": "",
             },
         )
@@ -248,8 +292,8 @@ async def learn_submit(
                 "incorrect_claims": result.analogy_issues,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": service.concept_a,
-                "concept_b": service.audience,
+                "concept_a": state.concept_a,
+                "concept_b": state.audience,
             },
         )
 

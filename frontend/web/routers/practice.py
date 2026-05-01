@@ -1,3 +1,4 @@
+import asyncio
 from collections import OrderedDict
 from datetime import date
 from typing import Annotated
@@ -12,17 +13,21 @@ from frontend.web.constants import TEMPLATES
 from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import PracticeState
 from frontend.web.session import get_session_id, read_session_id, set_session_cookie
+from frontend.web.session_store import session_store
 
 router = APIRouter()
 
 _MAX_SESSIONS = 500
+_ROUTER = "practice"
+_TTL = 7200
 _states: OrderedDict[str, PracticeState] = OrderedDict()
 
 
 def _get_state(request: Request) -> PracticeState:
     session_id = read_session_id(request)
     if session_id not in _states:
-        _states[session_id] = PracticeState()
+        restored = session_store.get(session_id, _ROUTER, PracticeState)
+        _states[session_id] = restored if restored is not None else PracticeState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
@@ -76,7 +81,8 @@ async def practice_start(
 ):
     session_id, is_new = get_session_id(request)
     if session_id not in _states:
-        _states[session_id] = PracticeState()
+        restored = session_store.get(session_id, _ROUTER, PracticeState)
+        _states[session_id] = restored if restored is not None else PracticeState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
@@ -92,6 +98,7 @@ async def practice_start(
         return resp
     state.session = quiz_service.start_session(questions)
     state.wrong_answers = []
+    await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
     resp = TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
@@ -139,6 +146,8 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
                 "explanation": question.explanation,
             }
         )
+    session_id = read_session_id(request)
+    await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
 
     ref = question.references[0] if question.references else None
     is_last = state.session.is_complete
@@ -173,6 +182,8 @@ async def practice_next(request: Request):
         wrong = list(state.wrong_answers)
         state.session = None
         state.wrong_answers.clear()
+        session_id = read_session_id(request)
+        await asyncio.to_thread(session_store.delete, session_id, _ROUTER)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="practice_summary.html",

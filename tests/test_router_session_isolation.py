@@ -5,18 +5,23 @@ concurrent users would share state. These tests verify that:
   1. Each router exposes _states: dict[str, XState] (not a single _state)
   2. State written for session "aaa" does not appear under session "bbb"
   3. A helper _get_state(request) creates a fresh entry on first access
+  4. After clearing the in-process cache, _get_state restores from the session store
 """
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import Request
 
 import frontend.web.routers.exam as exam_router
 import frontend.web.routers.learn as learn_router
 import frontend.web.routers.practice as practice_router
 import frontend.web.routers.quiz as quiz_router
+from frontend.web.schemas.schema import ExamState, LearnState, PracticeState, QuizState
+from frontend.web.session_store import SessionStore
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -169,3 +174,68 @@ class TestLearnRouterIsolation:
         state_a.exercise_type = "connect"
 
         assert learn_router._get_state(req_b).exercise_type == ""
+
+
+# ---------------------------------------------------------------------------
+# Restore-on-read: after clearing the in-process cache, _get_state restores
+# from the session store.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def tmp_store(tmp_path: Path) -> SessionStore:
+    return SessionStore(tmp_path / "sessions.db")
+
+
+class TestRestoreOnRead:
+    def _req(self, session_id: str) -> MagicMock:
+        return _make_request(session_id)
+
+    def test_quiz_restores_from_store(self, tmp_store: SessionStore):
+        state = QuizState()
+        state.wrong_answers = [{"question_text": "Q1"}]
+        tmp_store.put("restore-sid", "quiz", state, ttl_seconds=3600)
+        quiz_router._states.clear()
+        with patch.object(quiz_router, "session_store", tmp_store):
+            restored = quiz_router._get_state(self._req("restore-sid"))
+        assert restored.wrong_answers == [{"question_text": "Q1"}]
+
+    def test_practice_restores_from_store(self, tmp_store: SessionStore):
+        state = PracticeState()
+        state.wrong_answers = [{"question_text": "P1"}]
+        tmp_store.put("restore-sid", "practice", state, ttl_seconds=3600)
+        practice_router._states.clear()
+        with patch.object(practice_router, "session_store", tmp_store):
+            restored = practice_router._get_state(self._req("restore-sid"))
+        assert restored.wrong_answers == [{"question_text": "P1"}]
+
+    def test_exam_restores_from_store(self, tmp_store: SessionStore):
+        from core.schemas.llm_schemas import ExamProblem
+
+        state = ExamState(
+            category="RL",
+            problems=[ExamProblem(number=1, prompt="p", solution="s")],
+        )
+        tmp_store.put("restore-sid", "exam", state, ttl_seconds=3600)
+        exam_router._states.clear()
+        with patch.object(exam_router, "session_store", tmp_store):
+            restored = exam_router._get_state(self._req("restore-sid"))
+        assert restored.category == "RL"
+        assert len(restored.problems) == 1
+
+    def test_learn_restores_from_store(self, tmp_store: SessionStore):
+        state = LearnState(exercise_type="teach", concept_a="DQN", audience="a child")
+        tmp_store.put("restore-sid", "learn", state, ttl_seconds=3600)
+        learn_router._states.clear()
+        with patch.object(learn_router, "session_store", tmp_store):
+            restored = learn_router._get_state(self._req("restore-sid"))
+        assert restored.exercise_type == "teach"
+        assert restored.concept_a == "DQN"
+        assert restored.audience == "a child"
+
+    def test_missing_from_store_returns_blank_state(self, tmp_store: SessionStore):
+        quiz_router._states.clear()
+        with patch.object(quiz_router, "session_store", tmp_store):
+            restored = quiz_router._get_state(self._req("no-such-session"))
+        assert restored.session is None
+        assert restored.wrong_answers == []

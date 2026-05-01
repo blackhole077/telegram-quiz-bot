@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5vl:7b"
     log_level: str = "INFO"
     log_format: str = "json"
+    session_db_path: str = "/data/sessions.db"
 
     @property
     def pool_path(self) -> Path:

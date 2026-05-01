@@ -17,19 +17,23 @@ from frontend.web.constants import TEMPLATES
 from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import ExamState
 from frontend.web.session import get_session_id, read_session_id, set_session_cookie
+from frontend.web.session_store import session_store
 
 router = APIRouter()
 
 _exam_service = ExamService()
 
 _MAX_SESSIONS = 500
+_ROUTER = "exam"
+_TTL = 14400
 _states: OrderedDict[str, ExamState] = OrderedDict()
 
 
 def _get_state(request: Request) -> ExamState:
     session_id = read_session_id(request)
     if session_id not in _states:
-        _states[session_id] = ExamState()
+        restored = session_store.get(session_id, _ROUTER, ExamState)
+        _states[session_id] = restored if restored is not None else ExamState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
@@ -51,7 +55,8 @@ async def exam_start(
 ):
     session_id, is_new = get_session_id(request)
     if session_id not in _states:
-        _states[session_id] = ExamState()
+        restored = session_store.get(session_id, _ROUTER, ExamState)
+        _states[session_id] = restored if restored is not None else ExamState()
     _states.move_to_end(session_id)
     if len(_states) > _MAX_SESSIONS:
         _states.popitem(last=False)
@@ -70,6 +75,7 @@ async def exam_start(
         return resp
     state.problems = problems
     state.category = category
+    await asyncio.to_thread(session_store.put, session_id, _ROUTER, state, _TTL)
     resp = TEMPLATES.TemplateResponse(
         request=request,
         name="exam_form.html",
