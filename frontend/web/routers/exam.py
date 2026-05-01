@@ -1,7 +1,7 @@
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
 from backend.backends import make_backend
@@ -12,12 +12,20 @@ from core.schemas.llm_schemas import ExamProblem
 from core.service import QuizService
 from frontend.web.constants import TEMPLATES
 from frontend.web.schemas.schema import ExamState
+from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-_state = ExamState()
+_states: dict[str, ExamState] = {}
+
+
+def _get_state(request: Request) -> ExamState:
+    session_id = read_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = ExamState()
+    return _states[session_id]
 
 
 def _normalise_problems(problems: list[ExamProblem]) -> list[ExamProblem]:
@@ -42,33 +50,40 @@ async def exam_page(request: Request):
 @router.post("/exam/start", response_class=HTMLResponse, tags=["exam"])
 async def exam_start(
     request: Request,
+    response: Response,
     category: Annotated[str, Form()],
     count: Annotated[int, Form()] = 5,
 ):
+    session_id = get_session_id(request, response)
+    if session_id not in _states:
+        _states[session_id] = ExamState()
+    state = _states[session_id]
+
     weak_topics = _service.get_weak_topics()
     problems = await asyncio.to_thread(generate_exam, category, count, weak_topics)
     if not problems:
         return HTMLResponse(
             '<p class="nothing-due">Failed to generate exam. Check LLM settings and try again.</p>'
         )
-    _state.problems = _normalise_problems(problems)
-    _state.category = category
+    state.problems = _normalise_problems(problems)
+    state.category = category
     return TEMPLATES.TemplateResponse(
         request=request,
         name="exam_form.html",
-        context={"problems": _state.problems},
+        context={"problems": state.problems},
     )
 
 
 @router.post("/exam/submit", response_class=HTMLResponse, tags=["exam"])
 async def exam_submit(request: Request, answer: Annotated[list[str], Form()]):
-    if not _state.problems:
+    state = _get_state(request)
+    if not state.problems:
         return HTMLResponse(
             '<p class="nothing-due">No active exam. <a href="/exam">Start over</a>.</p>'
         )
 
     answer_text = "\n\n".join(f"{idx + 1}. {ans}" for idx, ans in enumerate(answer))
-    result = await asyncio.to_thread(grade_from_text, _state.problems, answer_text)
+    result = await asyncio.to_thread(grade_from_text, state.problems, answer_text)
 
     normalised_grades = [
         {
@@ -85,7 +100,7 @@ async def exam_submit(request: Request, answer: Annotated[list[str], Form()]):
             "grades": normalised_grades,
             "total_score": result.total_score,
             "summary": normalise_latex(result.summary),
-            "category": _state.category,
+            "category": state.category,
             "error": result.error,
         },
     )

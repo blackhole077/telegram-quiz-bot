@@ -1,7 +1,7 @@
 import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse
 
 from core.exam import normalise_latex
@@ -16,10 +16,18 @@ from core.llm import (
 )
 from frontend.web.constants import TEMPLATES
 from frontend.web.schemas.schema import LearnState
+from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
-_state = LearnState()
+_states: dict[str, LearnState] = {}
+
+
+def _get_state(request: Request) -> LearnState:
+    session_id = read_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = LearnState()
+    return _states[session_id]
 
 
 def _node_names() -> list[str]:
@@ -50,28 +58,34 @@ async def learn_neighbors(concept_a: Annotated[str, Query()] = ""):
 @router.post("/learn/start", response_class=HTMLResponse, tags=["learn"])
 async def learn_start(
     request: Request,
+    response: Response,
     exercise_type: Annotated[str, Form()],
     concept_a: Annotated[str, Form()],
     concept_b: Annotated[str, Form()] = "",
     domain_b: Annotated[str, Form()] = "",
     audience: Annotated[str, Form()] = "a fellow student",
 ):
+    session_id = get_session_id(request, response)
+    if session_id not in _states:
+        _states[session_id] = LearnState()
+    state = _states[session_id]
+
     graph = get_knowledge_graph()
     node_a = graph.get_node(concept_a)
     topic_material = node_a.description if node_a else ""
 
-    _state.exercise_type = exercise_type
-    _state.concept_a = concept_a
-    _state.concept_b = concept_b
-    _state.domain_b = domain_b
-    _state.audience = audience
-    _state.generated_content = ""
-    _state.solution_steps = []
+    state.exercise_type = exercise_type
+    state.concept_a = concept_a
+    state.concept_b = concept_b
+    state.domain_b = domain_b
+    state.audience = audience
+    state.generated_content = ""
+    state.solution_steps = []
 
     if exercise_type == "connect":
         edge = graph.get_edge(concept_a, concept_b)
         edge_type = edge.edge_type if edge else "related"
-        _state.edge_type = edge_type
+        state.edge_type = edge_type
 
         node_b = graph.get_node(concept_b)
         result = await asyncio.to_thread(
@@ -87,7 +101,7 @@ async def learn_start(
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        _state.generated_content = result.question
+        state.generated_content = result.question
 
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -109,8 +123,8 @@ async def learn_start(
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        _state.generated_content = result_text
-        _state.edge_type = domain_a
+        state.generated_content = result_text
+        state.edge_type = domain_a
 
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -132,8 +146,8 @@ async def learn_start(
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        _state.generated_content = result.prompt
-        _state.solution_steps = result.solution_steps
+        state.generated_content = result.prompt
+        state.solution_steps = result.solution_steps
 
         blank_count = result.prompt.count("[...]")
         return TEMPLATES.TemplateResponse(
@@ -167,20 +181,21 @@ async def learn_submit(
     request: Request,
     answer: Annotated[str, Form()],
 ):
-    if not _state.exercise_type:
+    state = _get_state(request)
+    if not state.exercise_type:
         return HTMLResponse(
             '<p class="nothing-due">No active exercise. <a href="/learn">Start over</a>.</p>'
         )
 
-    exercise_type = _state.exercise_type
+    exercise_type = state.exercise_type
 
     if exercise_type == "connect":
         result = await asyncio.to_thread(
             evaluate_relational_explanation,
             answer,
-            _state.concept_a,
-            _state.concept_b,
-            _state.edge_type,
+            state.concept_a,
+            state.concept_b,
+            state.edge_type,
         )
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -194,17 +209,17 @@ async def learn_submit(
                 "incorrect_claims": result.incorrect_relational_claims,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": _state.concept_a,
-                "concept_b": _state.concept_b,
+                "concept_a": state.concept_a,
+                "concept_b": state.concept_b,
             },
         )
 
     if exercise_type == "debug":
         problem_prompt = (
             f"The following is a plausible but incorrect application of "
-            f"'{_state.concept_a}' in the domain of '{_state.domain_b}'. "
+            f"'{state.concept_a}' in the domain of '{state.domain_b}'. "
             f"Identify what is wrong and explain the correct application:\n\n"
-            f"{_state.generated_content}"
+            f"{state.generated_content}"
         )
         result = await asyncio.to_thread(grade_answer, problem_prompt, "", answer)
         return TEMPLATES.TemplateResponse(
@@ -219,17 +234,17 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": _state.concept_a,
-                "concept_b": _state.domain_b,
+                "concept_a": state.concept_a,
+                "concept_b": state.domain_b,
             },
         )
 
     if exercise_type == "derive":
         solution_text = "\n".join(
-            f"{idx}. {step}" for idx, step in enumerate(_state.solution_steps)
+            f"{idx}. {step}" for idx, step in enumerate(state.solution_steps)
         )
         result = await asyncio.to_thread(
-            grade_answer, _state.generated_content, solution_text, answer
+            grade_answer, state.generated_content, solution_text, answer
         )
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -243,19 +258,19 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": _state.concept_a,
+                "concept_a": state.concept_a,
                 "concept_b": "",
             },
         )
 
     if exercise_type == "teach":
         graph = get_knowledge_graph()
-        node = graph.get_node(_state.concept_a)
+        node = graph.get_node(state.concept_a)
         topic_material = node.description if node else ""
         result = await asyncio.to_thread(
             grade_teach_it_back,
-            _state.concept_a,
-            _state.audience,
+            state.concept_a,
+            state.audience,
             answer,
             topic_material,
         )
@@ -271,8 +286,8 @@ async def learn_submit(
                 "incorrect_claims": result.analogy_issues,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": _state.concept_a,
-                "concept_b": _state.audience,
+                "concept_a": state.concept_a,
+                "concept_b": state.audience,
             },
         )
 

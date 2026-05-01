@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
 from backend.backends import make_backend
@@ -12,12 +12,20 @@ from core.schemas.schemas import QuizSession
 from core.service import QuizService
 from frontend.web.constants import TEMPLATES
 from frontend.web.schemas.schema import PracticeState
+from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-_state = PracticeState()
+_states: dict[str, PracticeState] = {}
+
+
+def _get_state(request: Request) -> PracticeState:
+    session_id = read_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = PracticeState()
+    return _states[session_id]
 
 
 def _today() -> str:
@@ -62,34 +70,41 @@ async def practice_page(request: Request):
 @router.post("/practice/start", response_class=HTMLResponse, tags=["practice"])
 async def practice_start(
     request: Request,
+    response: Response,
     topic: Annotated[str, Form()] = "",
     count: Annotated[int, Form()] = 10,
 ):
+    session_id = get_session_id(request, response)
+    if session_id not in _states:
+        _states[session_id] = PracticeState()
+    state = _states[session_id]
+
     questions = _service.prepare_practice(topic or None, count)
     if not questions:
         return HTMLResponse(
             '<p class="nothing-due">No questions found for that topic.</p>'
         )
-    _state.session = _service.start_session(questions)
-    _state.wrong_answers = []
+    state.session = _service.start_session(questions)
+    state.wrong_answers = []
     return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
-        context=_question_context(_state.session),
+        context=_question_context(state.session),
     )
 
 
 @router.post("/practice/answer", response_class=HTMLResponse, tags=["practice"])
 async def practice_answer(request: Request, answer: Annotated[str, Form()]):
-    if _state.session is None:
+    state = _get_state(request)
+    if state.session is None:
         return HTMLResponse(
             '<p class="nothing-due">No active session. <a href="/practice">Start over</a>.</p>'
         )
 
-    question = _state.session.current_display
+    question = state.session.current_display
     normalised = normalise_answer(answer, question)
     if normalised is None:
-        ctx = _question_context(_state.session)
+        ctx = _question_context(state.session)
         ctx["error"] = "Please select a valid option."
         return TEMPLATES.TemplateResponse(
             request=request, name="question.html", context=ctx
@@ -97,8 +112,8 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
 
     correct = normalised == question.correct.upper()
     if correct:
-        _state.session.score += 1
-    _state.session.cursor += 1
+        state.session.score += 1
+    state.session.cursor += 1
 
     lbls = labels(question)
     correct_text = ""
@@ -107,7 +122,7 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
         correct_text = clean_option(question.options[idx])
 
     if not correct:
-        _state.wrong_answers.append(
+        state.wrong_answers.append(
             {
                 "question_text": question.question,
                 "correct_label": question.correct,
@@ -117,7 +132,7 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
         )
 
     ref = question.references[0] if question.references else None
-    is_last = _state.session.is_complete
+    is_last = state.session.is_complete
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -137,17 +152,18 @@ async def practice_answer(request: Request, answer: Annotated[str, Form()]):
 
 @router.get("/practice/next", response_class=HTMLResponse, tags=["practice"])
 async def practice_next(request: Request):
-    if _state.session is None:
+    state = _get_state(request)
+    if state.session is None:
         return HTMLResponse(
             '<p class="nothing-due">No active session. <a href="/practice">Start over</a>.</p>'
         )
 
-    if _state.session.is_complete:
-        score = _state.session.score
-        total = _state.session.total
-        wrong = list(_state.wrong_answers)
-        _state.session = None
-        _state.wrong_answers.clear()
+    if state.session.is_complete:
+        score = state.session.score
+        total = state.session.total
+        wrong = list(state.wrong_answers)
+        state.session = None
+        state.wrong_answers.clear()
         return TEMPLATES.TemplateResponse(
             request=request,
             name="practice_summary.html",
@@ -157,5 +173,5 @@ async def practice_next(request: Request):
     return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
-        context=_question_context(_state.session),
+        context=_question_context(state.session),
     )

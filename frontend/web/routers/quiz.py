@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
 from backend.backends import make_backend
@@ -12,12 +12,20 @@ from core.schemas.schemas import QuizSession
 from core.service import QuizService
 from frontend.web.constants import TEMPLATES
 from frontend.web.schemas.schema import QuizState
+from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
 _service = QuizService(make_backend(settings), settings.topics_path)
 
-_state = QuizState()
+_states: dict[str, QuizState] = {}
+
+
+def _get_state(request: Request) -> QuizState:
+    session_id = read_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = QuizState()
+    return _states[session_id]
 
 
 def _today() -> str:
@@ -62,31 +70,37 @@ async def quiz_page(request: Request):
 
 
 @router.post("/quiz/start", response_class=HTMLResponse, tags=["quiz"])
-async def quiz_start(request: Request):
+async def quiz_start(request: Request, response: Response):
+    session_id = get_session_id(request, response)
+    if session_id not in _states:
+        _states[session_id] = QuizState()
+    state = _states[session_id]
+
     due = _service.prepare_session(_today())
     if not due:
         return HTMLResponse(
             '<p class="nothing-due">Nothing due right now. Check back tomorrow!</p>'
         )
-    _state.session = _service.start_session(due)
-    _state.wrong_answers = []
+    state.session = _service.start_session(due)
+    state.wrong_answers = []
     return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
-        context=_question_context(_state.session),
+        context=_question_context(state.session),
     )
 
 
 @router.post("/quiz/answer", response_class=HTMLResponse, tags=["quiz"])
 async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
-    if _state.session is None:
+    state = _get_state(request)
+    if state.session is None:
         return HTMLResponse(
             '<p class="nothing-due">No active session. <a href="/">Start over</a>.</p>'
         )
 
-    outcome = _service.process_answer(_state.session, answer, _today())
+    outcome = _service.process_answer(state.session, answer, _today())
     if outcome is None:
-        ctx = _question_context(_state.session)
+        ctx = _question_context(state.session)
         ctx["error"] = "Please select a valid option (A, B, C, or D)."
         return TEMPLATES.TemplateResponse(
             request=request, name="question.html", context=ctx
@@ -100,7 +114,7 @@ async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
         correct_text = clean_option(question.options[idx])
 
     if not outcome.correct:
-        _state.wrong_answers.append(
+        state.wrong_answers.append(
             {
                 "question_text": question.question,
                 "correct_label": question.correct,
@@ -110,7 +124,7 @@ async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
         )
 
     ref = question.references[0] if question.references else None
-    is_last = _state.session.is_complete
+    is_last = state.session.is_complete
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -131,18 +145,19 @@ async def quiz_answer(request: Request, answer: Annotated[str, Form()]):
 @router.get("/quiz/next", response_class=HTMLResponse, tags=["quiz"])
 async def quiz_next(request: Request):
     # NOTE: Might be better to just redirect back to "/quiz" instead?
-    if _state.session is None:
+    state = _get_state(request)
+    if state.session is None:
         return HTMLResponse(
             '<p class="nothing-due">No active session. <a href="/">Start over</a>.</p>'
         )
 
-    if _state.session.is_complete:
-        score = _state.session.score
-        total = _state.session.total
-        wrong = list(_state.wrong_answers)
-        _service.end_session(_state.session)
-        _state.session = None
-        _state.wrong_answers.clear()
+    if state.session.is_complete:
+        score = state.session.score
+        total = state.session.total
+        wrong = list(state.wrong_answers)
+        _service.end_session(state.session)
+        state.session = None
+        state.wrong_answers.clear()
         total_questions, new_due = _service.get_stats(_today())
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -159,5 +174,5 @@ async def quiz_next(request: Request):
     return TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
-        context=_question_context(_state.session),
+        context=_question_context(state.session),
     )
