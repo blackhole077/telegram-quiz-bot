@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from backend.backends import FilesystemBackend
+from backend.filesystem.filesystem import FilesystemBackend
 from core.schemas.question_schemas import HistoryEntry, QuestionType
 from tests.conftest import make_log_entry, make_question
 

@@ -459,7 +459,7 @@ class TestCmdPractice:
         problem = make_problem()
         with (
             patch.object(bot_module, "_PROBLEMS", [problem]),
-            patch("bot.bot.pick_random", return_value=[problem]),
+            patch("frontend.telegram_bot.bot.pick_random", return_value=[problem]),
         ):
             update = make_update()
             context = make_context()
@@ -471,7 +471,7 @@ class TestCmdPractice:
         problem = make_problem()
         with (
             patch.object(bot_module, "_PROBLEMS", [problem]),
-            patch("bot.bot.pick_random", return_value=[problem]),
+            patch("frontend.telegram_bot.bot.pick_random", return_value=[problem]),
         ):
             update = make_update()
             context = make_context()
@@ -483,8 +483,10 @@ class TestCmdPractice:
         problem = make_problem(topic="RL")
         with (
             patch.object(bot_module, "_PROBLEMS", [problem]),
-            patch("bot.bot.filter_by_topic", return_value=[problem]) as mock_filter,
-            patch("bot.bot.pick_random", return_value=[problem]),
+            patch(
+                "frontend.telegram_bot.bot.filter_by_topic", return_value=[problem]
+            ) as mock_filter,
+            patch("frontend.telegram_bot.bot.pick_random", return_value=[problem]),
         ):
             update = make_update()
             context = make_context()
@@ -532,7 +534,7 @@ class TestHandlePracticeAnswer:
         problem = make_problem()
         context = make_context({"practice_problem": problem})
         with patch(
-            "bot.bot.grade_answer", return_value=self._grade_result()
+            "frontend.telegram_bot.bot.grade_answer", return_value=self._grade_result()
         ) as mock_grade:
             update = make_update(text="my answer")
             await handle_practice_answer(update, context)
@@ -544,7 +546,9 @@ class TestHandlePracticeAnswer:
     async def test_returns_end(self):
         problem = make_problem()
         context = make_context({"practice_problem": problem})
-        with patch("bot.bot.grade_answer", return_value=self._grade_result()):
+        with patch(
+            "frontend.telegram_bot.bot.grade_answer", return_value=self._grade_result()
+        ):
             update = make_update(text="answer")
             result = await handle_practice_answer(update, context)
         assert result == ConversationHandler.END
@@ -554,7 +558,8 @@ class TestHandlePracticeAnswer:
         problem = make_problem()
         context = make_context({"practice_problem": problem})
         with patch(
-            "bot.bot.grade_answer", return_value=self._grade_result(correct=True)
+            "frontend.telegram_bot.bot.grade_answer",
+            return_value=self._grade_result(correct=True),
         ):
             update = make_update(text="answer")
             await handle_practice_answer(update, context)
@@ -566,7 +571,7 @@ class TestHandlePracticeAnswer:
         problem = make_problem()
         context = make_context({"practice_problem": problem})
         with patch(
-            "bot.bot.grade_answer",
+            "frontend.telegram_bot.bot.grade_answer",
             return_value=self._grade_result(correct=False, score=0.0),
         ):
             update = make_update(text="wrong")
@@ -620,7 +625,7 @@ class TestCmdExam:
         update = make_update()
         context = make_context()
         context.args = ["RL"]
-        with patch("bot.bot.generate_exam", return_value=[]):
+        with patch("frontend.telegram_bot.bot.generate_exam", return_value=[]):
             result = await cmd_exam(update, context)
         assert result == ConversationHandler.END
         assert any(
@@ -635,8 +640,12 @@ class TestCmdExam:
         context = make_context()
         context.args = ["Linear Algebra"]
         with (
-            patch("bot.bot.generate_exam", return_value=self._problems()),
-            patch("bot.bot.render_exam_pdf", return_value=b"%PDF-fake"),
+            patch(
+                "frontend.telegram_bot.bot.generate_exam", return_value=self._problems()
+            ),
+            patch(
+                "frontend.telegram_bot.bot.render_exam_pdf", return_value=b"%PDF-fake"
+            ),
         ):
             result = await cmd_exam(update, context)
         assert result == AWAITING_EXAM_ANSWER
@@ -650,8 +659,10 @@ class TestCmdExam:
         context.args = ["RL"]
         problems = self._problems()
         with (
-            patch("bot.bot.generate_exam", return_value=problems),
-            patch("bot.bot.render_exam_pdf", return_value=b"%PDF-fake"),
+            patch("frontend.telegram_bot.bot.generate_exam", return_value=problems),
+            patch(
+                "frontend.telegram_bot.bot.render_exam_pdf", return_value=b"%PDF-fake"
+            ),
         ):
             await cmd_exam(update, context)
         assert context.user_data["exam_problems"] == problems
@@ -667,8 +678,12 @@ class TestCmdExam:
         context = make_context()
         context.args = ["RL"]
         with (
-            patch("bot.bot.generate_exam", return_value=self._problems()) as mock_gen,
-            patch("bot.bot.render_exam_pdf", return_value=b"%PDF-fake"),
+            patch(
+                "frontend.telegram_bot.bot.generate_exam", return_value=self._problems()
+            ) as mock_gen,
+            patch(
+                "frontend.telegram_bot.bot.render_exam_pdf", return_value=b"%PDF-fake"
+            ),
         ):
             await cmd_exam(update, context)
         assert mock_gen.call_args.kwargs["weak_topics"] == ["Q-learning"]
@@ -704,7 +719,8 @@ class TestHandleExamSubmission:
     async def test_text_submission_calls_grade_from_text(self):
         context = make_context({"exam_problems": self._problems()})
         with patch(
-            "bot.bot.grade_from_text", return_value=self._grade_result()
+            "frontend.telegram_bot.bot.grade_from_text",
+            return_value=self._grade_result(),
         ) as mock_grade:
             update = make_update(text="My answers here.")
             update.message.photo = []
@@ -724,7 +740,8 @@ class TestHandleExamSubmission:
         update.message.text = None
 
         with patch(
-            "bot.bot.grade_from_image", return_value=self._grade_result()
+            "frontend.telegram_bot.bot.grade_from_image",
+            return_value=self._grade_result(),
         ) as mock_grade:
             await handle_exam_submission(update, context)
         mock_grade.assert_called_once()
@@ -734,7 +751,8 @@ class TestHandleExamSubmission:
     async def test_score_shown_in_reply(self):
         context = make_context({"exam_problems": self._problems()})
         with patch(
-            "bot.bot.grade_from_text", return_value=self._grade_result(score=0.75)
+            "frontend.telegram_bot.bot.grade_from_text",
+            return_value=self._grade_result(score=0.75),
         ):
             update = make_update(text="answers")
             update.message.photo = []
@@ -745,7 +763,10 @@ class TestHandleExamSubmission:
     @pytest.mark.asyncio
     async def test_returns_end(self):
         context = make_context({"exam_problems": self._problems()})
-        with patch("bot.bot.grade_from_text", return_value=self._grade_result()):
+        with patch(
+            "frontend.telegram_bot.bot.grade_from_text",
+            return_value=self._grade_result(),
+        ):
             update = make_update(text="answers")
             update.message.photo = []
             result = await handle_exam_submission(update, context)
