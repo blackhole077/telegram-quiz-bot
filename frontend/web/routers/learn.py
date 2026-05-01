@@ -1,3 +1,9 @@
+"""Learn/exercise router.
+
+All exercise logic lives in core.learn_service.LearnService.
+This router only dispatches to service methods and renders templates.
+"""
+
 import asyncio
 from typing import Annotated
 
@@ -6,27 +12,19 @@ from fastapi.responses import HTMLResponse
 
 from core.exam import normalise_latex
 from core.knowledge import get_knowledge_graph
-from core.llm import (
-    evaluate_relational_explanation,
-    generate_bridge_question,
-    generate_scaffolded_derivation,
-    generate_wrong_transposition,
-    grade_answer,
-    grade_teach_it_back,
-)
+from core.learn_service import LearnService
 from frontend.web.constants import TEMPLATES
-from frontend.web.schemas.schema import LearnState
 from frontend.web.session import get_session_id, read_session_id
 
 router = APIRouter()
 
-_states: dict[str, LearnState] = {}
+_states: dict[str, LearnService] = {}
 
 
-def _get_state(request: Request) -> LearnState:
+def _get_state(request: Request) -> LearnService:
     session_id = read_session_id(request)
     if session_id not in _states:
-        _states[session_id] = LearnState()
+        _states[session_id] = LearnService()
     return _states[session_id]
 
 
@@ -67,101 +65,63 @@ async def learn_start(
 ):
     session_id = get_session_id(request, response)
     if session_id not in _states:
-        _states[session_id] = LearnState()
-    state = _states[session_id]
-
-    graph = get_knowledge_graph()
-    node_a = graph.get_node(concept_a)
-    topic_material = node_a.description if node_a else ""
-
-    state.exercise_type = exercise_type
-    state.concept_a = concept_a
-    state.concept_b = concept_b
-    state.domain_b = domain_b
-    state.audience = audience
-    state.generated_content = ""
-    state.solution_steps = []
+        _states[session_id] = LearnService()
+    service = _states[session_id]
 
     if exercise_type == "connect":
-        edge = graph.get_edge(concept_a, concept_b)
-        edge_type = edge.edge_type if edge else "related"
-        state.edge_type = edge_type
-
-        node_b = graph.get_node(concept_b)
-        result = await asyncio.to_thread(
-            generate_bridge_question,
-            concept_a,
-            concept_b,
-            edge_type,
-            node_a.description if node_a else "",
-            node_b.description if node_b else "",
-            topic_material,
-        )
-        if result.error:
+        started = await asyncio.to_thread(service.start_connect, concept_a, concept_b)
+        if started.error:
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        state.generated_content = result.question
-
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
                 "exercise_type": exercise_type,
-                "prompt": normalise_latex(result.question),
+                "prompt": normalise_latex(started.generated_content),
                 "subtitle": f"Explain the connection between {concept_a} and {concept_b}",
                 "placeholder": "Describe how these two concepts are related, and why that connection matters...",
             },
         )
 
     if exercise_type == "debug":
-        domain_a = node_a.domain if node_a else "the source domain"
-        result_text = await asyncio.to_thread(
-            generate_wrong_transposition, concept_a, domain_a, domain_b, topic_material
-        )
-        if not result_text:
+        started = await asyncio.to_thread(service.start_debug, concept_a, domain_b)
+        if started.error:
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        state.generated_content = result_text
-        state.edge_type = domain_a
-
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
                 "exercise_type": exercise_type,
-                "prompt": normalise_latex(result_text),
+                "prompt": normalise_latex(started.generated_content),
                 "subtitle": f"Something is wrong with this application of {concept_a} in {domain_b}",
                 "placeholder": "Identify the error and explain what the correct application should be...",
             },
         )
 
     if exercise_type == "derive":
-        source_text = node_a.description if node_a and node_a.description else concept_a
-        result = await asyncio.to_thread(
-            generate_scaffolded_derivation, source_text, topic_material
-        )
-        if result.error or not result.prompt:
+        started = await asyncio.to_thread(service.start_derive, concept_a)
+        if started.error:
             return HTMLResponse(
                 '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
             )
-        state.generated_content = result.prompt
-        state.solution_steps = result.solution_steps
-
-        blank_count = result.prompt.count("[...]")
+        blank_count = started.generated_content.count("[...]")
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
             context={
                 "exercise_type": exercise_type,
-                "prompt": normalise_latex(result.prompt),
+                "prompt": normalise_latex(started.generated_content),
                 "subtitle": f"Fill in the {blank_count} blank step{'s' if blank_count != 1 else ''} in this derivation",
                 "placeholder": "Write your answers for the blank steps, one per line...",
             },
         )
 
     if exercise_type == "teach":
+        service.start_teach(concept_a, audience)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_exercise.html",
@@ -181,22 +141,16 @@ async def learn_submit(
     request: Request,
     answer: Annotated[str, Form()],
 ):
-    state = _get_state(request)
-    if not state.exercise_type:
+    service = _get_state(request)
+    if not service.exercise_type:
         return HTMLResponse(
             '<p class="nothing-due">No active exercise. <a href="/learn">Start over</a>.</p>'
         )
 
-    exercise_type = state.exercise_type
+    exercise_type = service.exercise_type
 
     if exercise_type == "connect":
-        result = await asyncio.to_thread(
-            evaluate_relational_explanation,
-            answer,
-            state.concept_a,
-            state.concept_b,
-            state.edge_type,
-        )
+        result = await asyncio.to_thread(service.grade_connect, answer)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
@@ -209,19 +163,13 @@ async def learn_submit(
                 "incorrect_claims": result.incorrect_relational_claims,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": state.concept_a,
-                "concept_b": state.concept_b,
+                "concept_a": service.concept_a,
+                "concept_b": service.concept_b,
             },
         )
 
     if exercise_type == "debug":
-        problem_prompt = (
-            f"The following is a plausible but incorrect application of "
-            f"'{state.concept_a}' in the domain of '{state.domain_b}'. "
-            f"Identify what is wrong and explain the correct application:\n\n"
-            f"{state.generated_content}"
-        )
-        result = await asyncio.to_thread(grade_answer, problem_prompt, "", answer)
+        result = await asyncio.to_thread(service.grade_debug, answer)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
@@ -234,18 +182,13 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": state.concept_a,
-                "concept_b": state.domain_b,
+                "concept_a": service.concept_a,
+                "concept_b": service.domain_b,
             },
         )
 
     if exercise_type == "derive":
-        solution_text = "\n".join(
-            f"{idx}. {step}" for idx, step in enumerate(state.solution_steps)
-        )
-        result = await asyncio.to_thread(
-            grade_answer, state.generated_content, solution_text, answer
-        )
+        result = await asyncio.to_thread(service.grade_derive, answer)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
@@ -258,22 +201,13 @@ async def learn_submit(
                 "incorrect_claims": [],
                 "model_solution": normalise_latex(result.model_solution),
                 "error": result.error,
-                "concept_a": state.concept_a,
+                "concept_a": service.concept_a,
                 "concept_b": "",
             },
         )
 
     if exercise_type == "teach":
-        graph = get_knowledge_graph()
-        node = graph.get_node(state.concept_a)
-        topic_material = node.description if node else ""
-        result = await asyncio.to_thread(
-            grade_teach_it_back,
-            state.concept_a,
-            state.audience,
-            answer,
-            topic_material,
-        )
+        result = await asyncio.to_thread(service.grade_teach, answer)
         return TEMPLATES.TemplateResponse(
             request=request,
             name="learn_feedback.html",
@@ -286,8 +220,8 @@ async def learn_submit(
                 "incorrect_claims": result.analogy_issues,
                 "model_solution": normalise_latex(result.model_answer),
                 "error": result.error,
-                "concept_a": state.concept_a,
-                "concept_b": state.audience,
+                "concept_a": service.concept_a,
+                "concept_b": service.audience,
             },
         )
 
