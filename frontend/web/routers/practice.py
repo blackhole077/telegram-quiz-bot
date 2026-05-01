@@ -2,7 +2,7 @@ from collections import OrderedDict
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, Response
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from core.question import clean_option, labels, normalise_answer
@@ -11,7 +11,7 @@ from core.schemas.schemas import QuizSession
 from frontend.web.constants import TEMPLATES
 from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import PracticeState
-from frontend.web.session import get_session_id, read_session_id
+from frontend.web.session import get_session_id, read_session_id, set_session_cookie
 
 router = APIRouter()
 
@@ -19,10 +19,8 @@ _MAX_SESSIONS = 500
 _states: OrderedDict[str, PracticeState] = OrderedDict()
 
 
-def _get_state(request: Request, response: Response | None = None) -> PracticeState:
-    session_id = (
-        get_session_id(request, response) if response else read_session_id(request)
-    )
+def _get_state(request: Request) -> PracticeState:
+    session_id = read_session_id(request)
     if session_id not in _states:
         _states[session_id] = PracticeState()
     _states.move_to_end(session_id)
@@ -73,24 +71,35 @@ async def practice_page(request: Request):
 @router.post("/practice/start", response_class=HTMLResponse, tags=["practice"])
 async def practice_start(
     request: Request,
-    response: Response,
     topic: Annotated[str, Form()] = "",
     count: Annotated[int, Form()] = 10,
 ):
-    state = _get_state(request, response)
+    session_id, is_new = get_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = PracticeState()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
+    state = _states[session_id]
 
     questions = quiz_service.prepare_practice(topic or None, count)
     if not questions:
-        return HTMLResponse(
+        resp = HTMLResponse(
             '<p class="nothing-due">No questions found for that topic.</p>'
         )
+        if is_new:
+            set_session_cookie(resp, session_id)
+        return resp
     state.session = quiz_service.start_session(questions)
     state.wrong_answers = []
-    return TEMPLATES.TemplateResponse(
+    resp = TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(state.session),
     )
+    if is_new:
+        set_session_cookie(resp, session_id)
+    return resp
 
 
 @router.post("/practice/answer", response_class=HTMLResponse, tags=["practice"])

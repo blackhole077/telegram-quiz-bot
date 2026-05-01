@@ -8,14 +8,14 @@ import asyncio
 from collections import OrderedDict
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Query, Request, Response
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from core.exam import normalise_latex
 from core.knowledge import get_knowledge_graph
 from core.learn_service import LearnService
 from frontend.web.constants import TEMPLATES
-from frontend.web.session import get_session_id, read_session_id
+from frontend.web.session import get_session_id, read_session_id, set_session_cookie
 
 router = APIRouter()
 
@@ -23,10 +23,8 @@ _MAX_SESSIONS = 500
 _states: OrderedDict[str, LearnService] = OrderedDict()
 
 
-def _get_state(request: Request, response: Response | None = None) -> LearnService:
-    session_id = (
-        get_session_id(request, response) if response else read_session_id(request)
-    )
+def _get_state(request: Request) -> LearnService:
+    session_id = read_session_id(request)
     if session_id not in _states:
         _states[session_id] = LearnService()
     _states.move_to_end(session_id)
@@ -63,81 +61,107 @@ async def learn_neighbors(concept_a: Annotated[str, Query()] = ""):
 @router.post("/learn/start", response_class=HTMLResponse, tags=["learn"])
 async def learn_start(
     request: Request,
-    response: Response,
     exercise_type: Annotated[str, Form()],
     concept_a: Annotated[str, Form()],
     concept_b: Annotated[str, Form()] = "",
     domain_b: Annotated[str, Form()] = "",
     audience: Annotated[str, Form()] = "a fellow student",
 ):
-    service = _get_state(request, response)
+    session_id, is_new = get_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = LearnService()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
+    service = _states[session_id]
+
+    def _with_cookie(resp: HTMLResponse) -> HTMLResponse:
+        if is_new:
+            set_session_cookie(resp, session_id)
+        return resp
 
     if exercise_type == "connect":
         started = await asyncio.to_thread(service.start_connect, concept_a, concept_b)
         if started.error:
-            return HTMLResponse(
-                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            return _with_cookie(
+                HTMLResponse(
+                    '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+                )
             )
-        return TEMPLATES.TemplateResponse(
-            request=request,
-            name="learn_exercise.html",
-            context={
-                "exercise_type": exercise_type,
-                "prompt": normalise_latex(started.generated_content),
-                "subtitle": f"Explain the connection between {concept_a} and {concept_b}",
-                "placeholder": "Describe how these two concepts are related, and why that connection matters...",
-            },
+        return _with_cookie(
+            TEMPLATES.TemplateResponse(
+                request=request,
+                name="learn_exercise.html",
+                context={
+                    "exercise_type": exercise_type,
+                    "prompt": normalise_latex(started.generated_content),
+                    "subtitle": f"Explain the connection between {concept_a} and {concept_b}",
+                    "placeholder": "Describe how these two concepts are related, and why that connection matters...",
+                },
+            )
         )
 
     if exercise_type == "debug":
         started = await asyncio.to_thread(service.start_debug, concept_a, domain_b)
         if started.error:
-            return HTMLResponse(
-                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            return _with_cookie(
+                HTMLResponse(
+                    '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+                )
             )
-        return TEMPLATES.TemplateResponse(
-            request=request,
-            name="learn_exercise.html",
-            context={
-                "exercise_type": exercise_type,
-                "prompt": normalise_latex(started.generated_content),
-                "subtitle": f"Something is wrong with this application of {concept_a} in {domain_b}",
-                "placeholder": "Identify the error and explain what the correct application should be...",
-            },
+        return _with_cookie(
+            TEMPLATES.TemplateResponse(
+                request=request,
+                name="learn_exercise.html",
+                context={
+                    "exercise_type": exercise_type,
+                    "prompt": normalise_latex(started.generated_content),
+                    "subtitle": f"Something is wrong with this application of {concept_a} in {domain_b}",
+                    "placeholder": "Identify the error and explain what the correct application should be...",
+                },
+            )
         )
 
     if exercise_type == "derive":
         started = await asyncio.to_thread(service.start_derive, concept_a)
         if started.error:
-            return HTMLResponse(
-                '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+            return _with_cookie(
+                HTMLResponse(
+                    '<p class="nothing-due">Failed to generate exercise. Check LLM settings.</p>'
+                )
             )
         blank_count = started.generated_content.count("[...]")
-        return TEMPLATES.TemplateResponse(
-            request=request,
-            name="learn_exercise.html",
-            context={
-                "exercise_type": exercise_type,
-                "prompt": normalise_latex(started.generated_content),
-                "subtitle": f"Fill in the {blank_count} blank step{'s' if blank_count != 1 else ''} in this derivation",
-                "placeholder": "Write your answers for the blank steps, one per line...",
-            },
+        return _with_cookie(
+            TEMPLATES.TemplateResponse(
+                request=request,
+                name="learn_exercise.html",
+                context={
+                    "exercise_type": exercise_type,
+                    "prompt": normalise_latex(started.generated_content),
+                    "subtitle": f"Fill in the {blank_count} blank step{'s' if blank_count != 1 else ''} in this derivation",
+                    "placeholder": "Write your answers for the blank steps, one per line...",
+                },
+            )
         )
 
     if exercise_type == "teach":
         service.start_teach(concept_a, audience)
-        return TEMPLATES.TemplateResponse(
-            request=request,
-            name="learn_exercise.html",
-            context={
-                "exercise_type": exercise_type,
-                "prompt": f"Explain {concept_a} to {audience}.",
-                "subtitle": f"Teach-it-back: explain {concept_a} as if speaking to {audience}",
-                "placeholder": f"Write your explanation of {concept_a} for {audience}...",
-            },
+        return _with_cookie(
+            TEMPLATES.TemplateResponse(
+                request=request,
+                name="learn_exercise.html",
+                context={
+                    "exercise_type": exercise_type,
+                    "prompt": f"Explain {concept_a} to {audience}.",
+                    "subtitle": f"Teach-it-back: explain {concept_a} as if speaking to {audience}",
+                    "placeholder": f"Write your explanation of {concept_a} for {audience}...",
+                },
+            )
         )
 
-    return HTMLResponse('<p class="nothing-due">Unknown exercise type.</p>')
+    return _with_cookie(
+        HTMLResponse('<p class="nothing-due">Unknown exercise type.</p>')
+    )
 
 
 @router.post("/learn/submit", response_class=HTMLResponse, tags=["learn"])

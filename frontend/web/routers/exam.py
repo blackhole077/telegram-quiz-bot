@@ -8,7 +8,7 @@ import asyncio
 from collections import OrderedDict
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, Response
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from core.exam import normalise_latex
@@ -16,7 +16,7 @@ from core.exam_service import ExamService
 from frontend.web.constants import TEMPLATES
 from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import ExamState
-from frontend.web.session import get_session_id, read_session_id
+from frontend.web.session import get_session_id, read_session_id, set_session_cookie
 
 router = APIRouter()
 
@@ -26,10 +26,8 @@ _MAX_SESSIONS = 500
 _states: OrderedDict[str, ExamState] = OrderedDict()
 
 
-def _get_state(request: Request, response: Response | None = None) -> ExamState:
-    session_id = (
-        get_session_id(request, response) if response else read_session_id(request)
-    )
+def _get_state(request: Request) -> ExamState:
+    session_id = read_session_id(request)
     if session_id not in _states:
         _states[session_id] = ExamState()
     _states.move_to_end(session_id)
@@ -48,27 +46,38 @@ async def exam_page(request: Request):
 @router.post("/exam/start", response_class=HTMLResponse, tags=["exam"])
 async def exam_start(
     request: Request,
-    response: Response,
     category: Annotated[str, Form()],
     count: Annotated[int, Form()] = 5,
 ):
-    state = _get_state(request, response)
+    session_id, is_new = get_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = ExamState()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
+    state = _states[session_id]
 
     weak_topics = quiz_service.get_weak_topics()
     problems = await asyncio.to_thread(
         _exam_service.generate, category, count, weak_topics
     )
     if not problems:
-        return HTMLResponse(
+        resp = HTMLResponse(
             '<p class="nothing-due">Failed to generate exam. Check LLM settings and try again.</p>'
         )
+        if is_new:
+            set_session_cookie(resp, session_id)
+        return resp
     state.problems = problems
     state.category = category
-    return TEMPLATES.TemplateResponse(
+    resp = TEMPLATES.TemplateResponse(
         request=request,
         name="exam_form.html",
         context={"problems": state.problems},
     )
+    if is_new:
+        set_session_cookie(resp, session_id)
+    return resp
 
 
 @router.post("/exam/submit", response_class=HTMLResponse, tags=["exam"])

@@ -2,7 +2,7 @@ from collections import OrderedDict
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, Response
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from core.question import clean_option, labels
@@ -11,7 +11,7 @@ from core.schemas.schemas import QuizSession
 from frontend.web.constants import TEMPLATES
 from frontend.web.dependencies import quiz_service
 from frontend.web.schemas.schema import QuizState
-from frontend.web.session import get_session_id, read_session_id
+from frontend.web.session import get_session_id, read_session_id, set_session_cookie
 
 router = APIRouter()
 
@@ -19,10 +19,8 @@ _MAX_SESSIONS = 500
 _states: OrderedDict[str, QuizState] = OrderedDict()
 
 
-def _get_state(request: Request, response: Response | None = None) -> QuizState:
-    session_id = (
-        get_session_id(request, response) if response else read_session_id(request)
-    )
+def _get_state(request: Request) -> QuizState:
+    session_id = read_session_id(request)
     if session_id not in _states:
         _states[session_id] = QuizState()
     _states.move_to_end(session_id)
@@ -71,21 +69,33 @@ async def quiz_page(request: Request):
 
 
 @router.post("/quiz/start", response_class=HTMLResponse, tags=["quiz"])
-async def quiz_start(request: Request, response: Response):
-    state = _get_state(request, response)
+async def quiz_start(request: Request):
+    session_id, is_new = get_session_id(request)
+    if session_id not in _states:
+        _states[session_id] = QuizState()
+    _states.move_to_end(session_id)
+    if len(_states) > _MAX_SESSIONS:
+        _states.popitem(last=False)
+    state = _states[session_id]
 
     due = quiz_service.prepare_session(_today())
     if not due:
-        return HTMLResponse(
+        resp = HTMLResponse(
             '<p class="nothing-due">Nothing due right now. Check back tomorrow!</p>'
         )
+        if is_new:
+            set_session_cookie(resp, session_id)
+        return resp
     state.session = quiz_service.start_session(due)
     state.wrong_answers = []
-    return TEMPLATES.TemplateResponse(
+    resp = TEMPLATES.TemplateResponse(
         request=request,
         name="question.html",
         context=_question_context(state.session),
     )
+    if is_new:
+        set_session_cookie(resp, session_id)
+    return resp
 
 
 @router.post("/quiz/answer", response_class=HTMLResponse, tags=["quiz"])

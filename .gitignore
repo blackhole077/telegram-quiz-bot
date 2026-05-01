@@ -1,6 +1,7 @@
 # Repo-specific definitions
 /data
 .claude/
+.harness/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
