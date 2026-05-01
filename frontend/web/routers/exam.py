@@ -90,11 +90,14 @@ async def exam_submit(request: Request, answer: Annotated[list[str], Form()]):
 
     result = await asyncio.to_thread(_exam_service.grade, state.problems, answer)
 
+    solution_by_number = {problem.number: problem.solution for problem in state.problems}
+
     normalised_grades = [
         {
             "number": grade.number,
             "score": grade.score,
             "feedback": normalise_latex(grade.feedback),
+            "solution": solution_by_number.get(grade.number, ""),
         }
         for grade in result.problems
     ]
