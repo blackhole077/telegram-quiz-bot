@@ -12,7 +12,9 @@ from core.config import Settings
 def configure_logging(settings: Settings) -> None:
     processors = [
         structlog.processors.add_log_level,
-        structlog.processors.add_logger_name,
+        structlog.processors.CallsiteParameterAdder(
+            [structlog.processors.CallsiteParameter.MODULE]
+        ),
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
