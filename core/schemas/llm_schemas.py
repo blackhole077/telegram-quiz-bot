@@ -6,9 +6,25 @@ See bot/data/README.md for the full correspondence table.
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Annotated, Protocol, runtime_checkable
 
 from pydantic import BaseModel, BeforeValidator, Field
+
+
+class LLMModelType(Enum):
+    STANDARD = "standard"  # GPT-4o, Llama, Qwen-Instruct, etc.
+    REASONING = "reasoning"  # DeepSeek-R1, o1, o3, QwQ, etc.
+
+
+_REASONING_PATTERNS = ["r1", "o1", "o3", "qwq", "macro-o1"]
+
+
+def infer_model_type(model_name: str) -> LLMModelType:
+    name = model_name.lower()
+    if any(p in name for p in _REASONING_PATTERNS):
+        return LLMModelType.REASONING
+    return LLMModelType.STANDARD
 
 
 def _coerce_str_to_list(value: object) -> object:
@@ -29,7 +45,7 @@ class LLMBackend(Protocol):
     in transparently by changing env vars - no function signatures change.
     """
 
-    def chat(self, system: str, user: str) -> str: ...
+    def chat(self, system: str, user: str, schema: BaseModel | None = None) -> str: ...
 
     def chat_with_image(
         self,
@@ -37,6 +53,7 @@ class LLMBackend(Protocol):
         user: str,
         image_bytes: bytes,
         media_type: str = "image/jpeg",
+        schema: BaseModel | None = None,
     ) -> str: ...
 
 

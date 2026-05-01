@@ -22,7 +22,7 @@ from typing import Any
 
 import openai
 from PIL import Image
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from core.constants import LLM_ROOT
 
@@ -40,10 +40,12 @@ from core.schemas.llm_schemas import (
     ExamProblem,
     GradeResult,
     LLMBackend,
+    LLMModelType,
     RelationalGradeResult,
     ScaffoldedDerivation,
     TeachItBackResult,
     WrongTransposition,
+    infer_model_type,
 )
 
 logger = logging.getLogger(__name__)
@@ -146,19 +148,61 @@ class OpenAIBackend:
         model: str | None = None,
     ) -> None:
         self._model = model or settings.llm_model
+        self._model_type = infer_model_type(self._model)
+        print(f"Using Model: {self._model}\tType: {self._model_type}")
         self._client = openai.OpenAI(
             base_url=base_url or settings.llm_base_url,
             api_key=api_key or settings.llm_api_key,
         )
 
-    def chat(self, system: str, user: str) -> str:
+    def chat(self, system: str, user: str, schema: BaseModel = None) -> str:
+        if self._model_type == LLMModelType.REASONING:
+            return self._chat_reasoning(system, user, schema)
+        return self._chat_standard(system, user, schema)
+
+    def _chat_standard(self, system: str, user: str, schema: BaseModel = None):
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        if not schema:
+            response_format = {"type": "json_object"}
+        else:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
+                    "strict": True,
+                },
+            }
         resp = self._client.chat.completions.create(
             model=self._model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            response_format={"type": "json_object"},
+            messages=messages,
+            response_format=response_format,
+        )
+        return resp.choices[0].message.content or ""
+
+    # FLAG
+    def _chat_reasoning(self, system: str, user: str, schema: BaseModel = None):
+        # Since R1 de-prioritizes system prompts we'll fold the two together.
+        combined = f"{system}\n\n{user}" if system else user
+        messages = [{"role": "user", "content": combined}]
+        if not schema:
+            response_format = {"type": "json_object"}
+        else:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
+                    "strict": True,
+                },
+            }
+        resp = self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            response_format=response_format,
         )
         return resp.choices[0].message.content or ""
 
@@ -220,16 +264,18 @@ _CONSISTENCY_THRESHOLD = 0.5
 _CONSISTENCY_MAX_DRIFT = 0.2
 
 
-def _consistent_grade(system: str, user: str, parse: Callable[[str], Any]) -> Any:
+def _consistent_grade(
+    system: str, user: str, parse: Callable[[str], Any], schema: BaseModel = None
+) -> Any:
     """Grade once; re-grade borderline results and take the lower on disagreement.
 
     If the two scores differ by more than _CONSISTENCY_MAX_DRIFT, logs a warning
     and returns the stricter result. This keeps grades stable across model runs.
     """
-    result = parse(_backend.chat(system, user))
+    result = parse(_backend.chat(system, user, schema))
     score = getattr(result, "score", None)
     if score is not None and score < _CONSISTENCY_THRESHOLD:
-        result2 = parse(_backend.chat(system, user))
+        result2 = parse(_backend.chat(system, user, schema))
         score2 = getattr(result2, "score", None)
         if score2 is not None and abs(score - score2) > _CONSISTENCY_MAX_DRIFT:
             logger.warning(
@@ -277,7 +323,7 @@ def grade_answer(
         return GradeResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse)
+        return _consistent_grade(system, user, _parse, GradeResult)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_answer failed: %s", exc)
         return GradeResult(
@@ -312,12 +358,14 @@ def generate_exam(
         weak_section=weak_section,
     )
     try:
-        parsed = json.loads(_backend.chat(system, user))
-        items: list[dict] = (
-            parsed
-            if isinstance(parsed, list)
-            else parsed.get("problems", parsed.get("questions", []))
-        )
+        # FLAG
+        print(f"System Prompt: {system}")
+        print(f"User Prompt: {user}")
+        raw_output = _backend.chat(system, user, ExamProblem)
+        print(raw_output)
+        parsed = json.loads(raw_output)
+        items: list[dict] = parsed if isinstance(parsed, list) else [parsed]
+        print(items)
         return [ExamProblem.model_validate(item) for item in items]
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("generate_exam failed: %s", exc)
@@ -346,7 +394,9 @@ def grade_from_text(
         answer_text=answer_text,
     )
     try:
-        return ExamGradeResult.model_validate(json.loads(_backend.chat(system, user)))
+        return ExamGradeResult.model_validate(
+            json.loads(_backend.chat(system, user, ExamGradeResult))
+        )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_from_text failed: %s", exc)
         return ExamGradeResult(
@@ -402,10 +452,11 @@ def grade_teach_it_back(
     )
 
     def _parse(raw: str) -> TeachItBackResult:
+        print(json.loads(raw))
         return TeachItBackResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse)
+        return _consistent_grade(system, user, _parse, TeachItBackResult)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("grade_teach_it_back failed: %s", exc)
         return TeachItBackResult(
@@ -524,7 +575,7 @@ def evaluate_relational_explanation(
         return RelationalGradeResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse)
+        return _consistent_grade(system, user, _parse, RelationalGradeResult)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
         logger.error("evaluate_relational_explanation failed: %s", exc)
         return RelationalGradeResult(
