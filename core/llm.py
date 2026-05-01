@@ -16,6 +16,7 @@ import contextlib
 import io
 import json
 import logging
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
@@ -153,7 +154,7 @@ class OpenAIBackend:
     ) -> None:
         self._model = model or settings.llm_model
         self._model_type = infer_model_type(self._model)
-        print(f"Using Model: {self._model}\tType: {self._model_type}")
+        logger.info("llm_backend model=%s type=%s", self._model, self._model_type.name)
         self._client = openai.OpenAI(
             base_url=base_url or settings.llm_base_url,
             api_key=api_key or settings.llm_api_key,
@@ -268,18 +269,54 @@ _CONSISTENCY_THRESHOLD = 0.5
 _CONSISTENCY_MAX_DRIFT = 0.2
 
 
+def _timed_chat(fn_name: str, system: str, user: str, schema=None) -> str:
+    start = time.perf_counter()
+    exc_type = None
+    try:
+        return _backend.chat(system, user, schema)
+    except Exception as exc:
+        exc_type = type(exc).__name__
+        raise
+    finally:
+        elapsed = round((time.perf_counter() - start) * 1000)
+        logger.info("llm_call fn=%s latency_ms=%s error=%s", fn_name, elapsed, exc_type)
+
+
+def _timed_chat_image(
+    fn_name: str,
+    system: str,
+    user: str,
+    image_bytes: bytes,
+    media_type: str = "image/jpeg",
+) -> str:
+    start = time.perf_counter()
+    exc_type = None
+    try:
+        return _backend.chat_with_image(system, user, image_bytes, media_type)
+    except Exception as exc:
+        exc_type = type(exc).__name__
+        raise
+    finally:
+        elapsed = round((time.perf_counter() - start) * 1000)
+        logger.info("llm_call fn=%s latency_ms=%s error=%s", fn_name, elapsed, exc_type)
+
+
 def _consistent_grade(
-    system: str, user: str, parse: Callable[[str], Any], schema: BaseModel = None
+    fn_name: str,
+    system: str,
+    user: str,
+    parse: Callable[[str], Any],
+    schema: BaseModel = None,
 ) -> Any:
     """Grade once; re-grade borderline results and take the lower on disagreement.
 
     If the two scores differ by more than _CONSISTENCY_MAX_DRIFT, logs a warning
     and returns the stricter result. This keeps grades stable across model runs.
     """
-    result = parse(_backend.chat(system, user, schema))
+    result = parse(_timed_chat(fn_name, system, user, schema))
     score = getattr(result, "score", None)
     if score is not None and score < _CONSISTENCY_THRESHOLD:
-        result2 = parse(_backend.chat(system, user, schema))
+        result2 = parse(_timed_chat(fn_name, system, user, schema))
         score2 = getattr(result2, "score", None)
         if score2 is not None and abs(score - score2) > _CONSISTENCY_MAX_DRIFT:
             logger.warning(
@@ -327,9 +364,9 @@ def grade_answer(
         return GradeResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse, GradeResult)
+        return _consistent_grade("grade_answer", system, user, _parse, GradeResult)
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("grade_answer failed: %s", exc)
+        logger.error("grade_answer failed: %s", type(exc).__name__)
         return GradeResult(
             correct=False,
             score=0.0,
@@ -362,7 +399,7 @@ def generate_exam(
         weak_section=weak_section,
     )
     try:
-        raw_output = _backend.chat(system, user, _ExamProblemsResponse)
+        raw_output = _timed_chat("generate_exam", system, user, _ExamProblemsResponse)
         parsed = json.loads(raw_output)
 
         if isinstance(parsed, dict) and "problems" in parsed:
@@ -393,7 +430,7 @@ def generate_exam(
                 logger.warning("generate_exam: skipping malformed item: %s", exc)
         return problems
     except (openai.OpenAIError, json.JSONDecodeError) as exc:
-        logger.error("generate_exam failed: %s", exc)
+        logger.error("generate_exam failed: %s", type(exc).__name__)
         return []
 
 
@@ -420,10 +457,10 @@ def grade_from_text(
     )
     try:
         return ExamGradeResult.model_validate(
-            json.loads(_backend.chat(system, user, ExamGradeResult))
+            json.loads(_timed_chat("grade_from_text", system, user, ExamGradeResult))
         )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("grade_from_text failed: %s", exc)
+        logger.error("grade_from_text failed: %s", type(exc).__name__)
         return ExamGradeResult(
             error=str(exc), summary="Grading failed - please try again."
         )
@@ -441,7 +478,9 @@ def grade_from_image(
         normalized_bytes, media_type = normalize_image(image_bytes)
         return ExamGradeResult.model_validate(
             json.loads(
-                _backend.chat_with_image(system, user, normalized_bytes, media_type)
+                _timed_chat_image(
+                    "grade_from_image", system, user, normalized_bytes, media_type
+                )
             )
         )
     except (
@@ -450,7 +489,7 @@ def grade_from_image(
         ValidationError,
         ValueError,
     ) as exc:
-        logger.error("grade_from_image failed: %s", exc)
+        logger.error("grade_from_image failed: %s", type(exc).__name__)
         return ExamGradeResult(
             error=str(exc), summary="Grading failed - please try again."
         )
@@ -477,13 +516,14 @@ def grade_teach_it_back(
     )
 
     def _parse(raw: str) -> TeachItBackResult:
-        print(json.loads(raw))
         return TeachItBackResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse, TeachItBackResult)
+        return _consistent_grade(
+            "grade_teach_it_back", system, user, _parse, TeachItBackResult
+        )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("grade_teach_it_back failed: %s", exc)
+        logger.error("grade_teach_it_back failed: %s", type(exc).__name__)
         return TeachItBackResult(
             score=0.0, feedback="Grading failed - please try again.", error=str(exc)
         )
@@ -512,9 +552,11 @@ def generate_bridge_question(
         node_b_description=node_b_description,
     )
     try:
-        return BridgeQuestion.model_validate(json.loads(_backend.chat(system, user)))
+        return BridgeQuestion.model_validate(
+            json.loads(_timed_chat("generate_bridge_question", system, user))
+        )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("generate_bridge_question failed: %s", exc)
+        logger.error("generate_bridge_question failed: %s", type(exc).__name__)
         return BridgeQuestion(
             question="",
             requires_edge=False,
@@ -546,11 +588,11 @@ def generate_wrong_transposition(
     )
     try:
         result = WrongTransposition.model_validate(
-            json.loads(_backend.chat(system, user))
+            json.loads(_timed_chat("generate_wrong_transposition", system, user))
         )
         return result.text
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("generate_wrong_transposition failed: %s", exc)
+        logger.error("generate_wrong_transposition failed: %s", type(exc).__name__)
         return ""
 
 
@@ -567,10 +609,10 @@ def generate_scaffolded_derivation(
     user = _render(_USR_SCAFFOLDED_DERIVATION, derivation_text=derivation_text)
     try:
         return ScaffoldedDerivation.model_validate(
-            json.loads(_backend.chat(system, user))
+            json.loads(_timed_chat("generate_scaffolded_derivation", system, user))
         )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("generate_scaffolded_derivation failed: %s", exc)
+        logger.error("generate_scaffolded_derivation failed: %s", type(exc).__name__)
         return ScaffoldedDerivation(prompt="", error=str(exc))
 
 
@@ -600,9 +642,11 @@ def evaluate_relational_explanation(
         return RelationalGradeResult.model_validate(json.loads(raw))
 
     try:
-        return _consistent_grade(system, user, _parse, RelationalGradeResult)
+        return _consistent_grade(
+            "evaluate_relational_explanation", system, user, _parse, RelationalGradeResult
+        )
     except (openai.OpenAIError, json.JSONDecodeError, ValidationError) as exc:
-        logger.error("evaluate_relational_explanation failed: %s", exc)
+        logger.error("evaluate_relational_explanation failed: %s", type(exc).__name__)
         return RelationalGradeResult(
             correct=False,
             score=0.0,

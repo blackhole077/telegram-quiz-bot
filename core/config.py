@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: str = "ollama"
     llm_model: str = "qwen2.5vl:7b"
+    log_level: str = "INFO"
+    log_format: str = "json"
 
     @property
     def pool_path(self) -> Path:
