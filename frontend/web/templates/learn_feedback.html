@@ -37,8 +37,8 @@
     {% if model_solution %}
     <div class="wrong-answers">
         <details>
-            <summary class="wrong-answers-toggle">Model solution</summary>
-            <p class="explanation" style="margin-top:8px">{{ model_solution }}</p>
+            <summary class="wrong-answers-toggle">Proposed Answer</summary>
+            {{ model_solution | format_solution }}
         </details>
     </div>
     {% endif %}

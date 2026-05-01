@@ -191,7 +191,7 @@ async def handle_practice_answer(
     parts = [f"{'Correct' if result.correct else 'Incorrect'} ({result.score:.0%})"]
     parts.append(result.feedback)
     if not result.correct and result.model_solution:
-        parts.append(f"\nModel solution:\n{result.model_solution}")
+        parts.append(f"\nProposed Answer:\n{result.model_solution}")
     parts.append("\nSend /practice for another problem or /quiz to resume reviewing.")
 
     await update.message.reply_text("\n\n".join(parts))

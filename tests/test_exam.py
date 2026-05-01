@@ -11,7 +11,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token-abc123")
 os.environ.setdefault("ALLOWED_USER_ID", "99999")
 
 from core.constants import REMEDIAL_TEMPLATE_SRC
-from core.exam import _build_content, _escape, render_exam_pdf
+from core.exam import _build_content, _escape, normalise_latex, render_exam_pdf
 from core.schemas.llm_schemas import ExamProblem
 
 # ---------------------------------------------------------------------------
@@ -151,6 +151,126 @@ class TestBuildContent:
         result = _build_content(problems)
         assert r"\rproblem{" in result
         assert r"\problem{" in result
+
+
+# ---------------------------------------------------------------------------
+# normalise_latex
+# ---------------------------------------------------------------------------
+
+
+class TestNormaliseLatexControlChars:
+    def test_tab_to_produces_to(self):
+        assert normalise_latex(chr(0x24) + chr(0x09) + "o" + chr(0x24)) == r"\(\to\)"
+
+    def test_tab_frac_produces_frac(self):
+        assert (
+            normalise_latex(chr(0x24) + chr(0x0C) + "rac{a}{b}" + chr(0x24))
+            == r"\(\frac{a}{b}\)"
+        )
+
+    def test_cr_rho_produces_rho(self):
+        assert normalise_latex(chr(0x24) + chr(0x0D) + "ho" + chr(0x24)) == r"\(\rho\)"
+
+    def test_tab_theta_produces_theta(self):
+        assert (
+            normalise_latex(chr(0x24) + chr(0x09) + "heta" + chr(0x24)) == r"\(\theta\)"
+        )
+
+    def test_bs_beta_produces_beta(self):
+        assert (
+            normalise_latex(chr(0x24) + chr(0x08) + "eta" + chr(0x24)) == r"\(\beta\)"
+        )
+
+    def test_cr_rightarrow_produces_rightarrow(self):
+        assert (
+            normalise_latex(chr(0x24) + chr(0x0D) + "ightarrow" + chr(0x24))
+            == r"\(\rightarrow\)"
+        )
+
+    def test_tab_times_produces_times(self):
+        assert (
+            normalise_latex(chr(0x24) + chr(0x09) + "imes" + chr(0x24)) == r"\(\times\)"
+        )
+
+    def test_plain_text_passes_through(self):
+        assert normalise_latex("hello world") == "hello world"
+
+    def test_empty_string(self):
+        assert normalise_latex("") == ""
+
+
+class TestNormaliseLatexDollarDelimiters:
+    def test_inline_dollar_converted(self):
+        assert normalise_latex("$x$") == r"\(x\)"
+
+    def test_display_dollar_converted(self):
+        assert normalise_latex("$$x + y$$") == r"\[x + y\]"
+
+    def test_display_dollar_not_double_converted(self):
+        assert normalise_latex("$$a$$") == r"\[a\]"
+
+    def test_multiple_inline_dollars(self):
+        assert normalise_latex("$x$ and $y$") == r"\(x\) and \(y\)"
+
+    def test_mixed_display_and_inline(self):
+        assert normalise_latex("$$a$$ then $b$") == r"\[a\] then \(b\)"
+
+    def test_display_dollar_dotall(self):
+        assert normalise_latex("$$\n\\sum x\n$$") == "\\[\n\\sum x\n\\]"
+
+    def test_frac_preserved(self):
+        assert normalise_latex(r"$\frac{a}{b}$") == r"\(\frac{a}{b}\)"
+
+    def test_subscript_preserved(self):
+        assert normalise_latex("$x_i$") == r"\(x_i\)"
+
+    def test_already_paren_delimited_unchanged(self):
+        assert normalise_latex(r"\(\to\)") == r"\(\to\)"
+
+    def test_already_bracket_delimited_unchanged(self):
+        assert normalise_latex(r"\[x\]") == r"\[x\]"
+
+
+class TestNormaliseLatexMatrix:
+    def test_pmatrix_single_backslash_newline_doubled(self):
+        raw = "\\begin{pmatrix}a \\\nb\\end{pmatrix}"
+        result = normalise_latex(raw)
+        assert "\\\\" in result
+
+    def test_pmatrix_double_backslash_not_modified(self):
+        raw = "\\begin{pmatrix}a \\\\\\nb\\end{pmatrix}"
+        result = normalise_latex(raw)
+        assert result == raw
+
+    def test_bmatrix_variant_covered(self):
+        raw = "\\begin{bmatrix}a \\\nb\\end{bmatrix}"
+        result = normalise_latex(raw)
+        assert "\\\\" in result
+
+    def test_matrix_tab_corruption_repaired_before_matrix_fix(self):
+        body = chr(0x09) + "o"
+        raw = f"\\begin{{pmatrix}}${body}$\\end{{pmatrix}}"
+        result = normalise_latex(raw)
+        assert r"\(\to\)" in result
+
+    def test_backtick_wrapped_dollar_converted(self):
+        result = normalise_latex("`$x$`")
+        assert r"\(x\)" in result
+
+    def test_backtick_with_tab_corruption_repaired(self):
+        result = normalise_latex("`" + chr(0x24) + chr(0x09) + "o" + chr(0x24) + "`")
+        assert r"\(\to\)" in result
+
+    def test_properly_escaped_in_converted(self):
+        assert normalise_latex(r"$\in$") == r"\(\in\)"
+
+    @pytest.mark.xfail(
+        strict=False, reason="CR+LF in matrix body confuses row-sep regex"
+    )
+    def test_crlf_matrix_row_separator_xfail(self):
+        raw = "\\begin{pmatrix}a \\\r\nb\\end{pmatrix}"
+        result = normalise_latex(raw)
+        assert "\\\\" in result
 
 
 # ---------------------------------------------------------------------------

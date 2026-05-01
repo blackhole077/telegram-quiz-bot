@@ -577,7 +577,7 @@ class TestHandlePracticeAnswer:
             update = make_update(text="wrong")
             await handle_practice_answer(update, context)
         full_text = " ".join(c[0][0] for c in update.message.reply_text.call_args_list)
-        assert "Model solution" in full_text
+        assert "Proposed Answer" in full_text
 
     @pytest.mark.asyncio
     async def test_no_problem_in_context_ends_silently(self):
